@@ -23,12 +23,18 @@
 
 ### MVP-02 — Spike de dérisquage : VAD temps réel on-device
 
-- **Statut** : ⬜ à faire
+- **Statut** : 🟧 en cours
 - **Dépend de** : MVP-01
 - **Objectif** : prouver que Silero VAD (ONNX) tourne en continu sur téléphone avec `record` (PCM 16 kHz) : détection début/fin de parole + mesure d'énergie RMS par segment. Écran de debug jetable (niveaux, segments détectés).
 - **Critères d'acceptation** : sur appareil réel, la parole est segmentée avec < 300 ms de retard de détection ; une voix à 1,5 m est distinguable d'une voix à 30 cm par l'énergie ; CPU/batterie raisonnables sur 15 min (observation).
 - **Tests** : unitaires de la logique de segmentation (états silence/parole, hystérésis) sur buffers synthétiques ; le modèle ONNX lui-même est testé manuellement.
 - **Manuel (Rayan)** : tester sur 1 iPhone + 1 Android réels ; noter les mesures (retard, batterie) dans la tâche. **Go/no-go** : si le VAD ne tient pas, on pivote (VAD énergie simple) avant d'aller plus loin.
+- **Réalisé** (18/07/2026 — code terminé, en attente des tests appareil réel de Rayan) :
+  - Runtime ONNX : `flutter_onnxruntime` 1.8.2 retenu (validé avec Rayan) — le package `onnxruntime` pressenti au doc 02 §9 est à l'abandon (dernière publication 03/2024). Modèle **Silero VAD v5** commité en asset (`app/assets/models/silero_vad.onnx`, 2,3 Mo, MIT). Protocole d'appel (contexte glissant 64 samples, état LSTM [2,1,128], `sr` int64) validé contre onnxruntime desktop avant écriture du code Dart.
+  - `capture/domain/` pur Dart et pérenne (repris tel quel en MVP-08) : `VadConfig` (seuils par défaut : hystérésis 0,5/0,35, minSpeech 200 ms, minSilence 600 ms — à calibrer en MVP-15), `SpeechSegmenter` (machine à états + énergie RMS dBFS, micro-pauses absorbées, énergie du silence de clôture exclue), interfaces `VadService`/`MicAudioSource`, `AudioLevel`. Jetables : écran `vad_debug_view` + ViewModel.
+  - Ajout au socle : `core/command/` (pattern Command du guide Flutter, exigé par les conventions pour les ViewModels).
+  - Capture via `record` 7.1.1 (PCM16 16 kHz mono, AGC/débruitage désactivés pour préserver l'énergie ; rien sur disque). Plateforme : `RECORD_AUDIO` (Android), `NSMicrophoneUsageDescription` (iOS), Podfile iOS 16 + linkage statique et deployment target 16.0 (exigences ONNX Runtime), règles ProGuard ORT.
+  - Vérifié : analyze 0 issue, 40/40 tests verts (segmenteur exhaustif, RMS, Command, ViewModel avec fakes). Critères « retard < 300 ms », « 30 cm vs 1,5 m », « CPU/batterie 15 min » : à mesurer par Rayan sur appareils réels (go/no-go).
 
 ### MVP-03 — Spike de dérisquage : session LAN 2 téléphones
 

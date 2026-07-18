@@ -16,28 +16,27 @@ sealed class Result<T> {
   bool get isErr => this is Err<T>;
 
   T? get valueOrNull => switch (this) {
-        Ok(:final value) => value,
-        Err() => null,
-      };
+    Ok(:final value) => value,
+    Err() => null,
+  };
 
   Failure? get failureOrNull => switch (this) {
-        Ok() => null,
-        Err(:final failure) => failure,
-      };
+    Ok() => null,
+    Err(:final failure) => failure,
+  };
 
   Result<U> map<U>(U Function(T value) transform) => switch (this) {
-        Ok(:final value) => Ok(transform(value)),
-        Err(:final failure) => Err(failure),
-      };
+    Ok(:final value) => Ok(transform(value)),
+    Err(:final failure) => Err(failure),
+  };
 
   U fold<U>({
     required U Function(T value) onOk,
     required U Function(Failure failure) onErr,
-  }) =>
-      switch (this) {
-        Ok(:final value) => onOk(value),
-        Err(:final failure) => onErr(failure),
-      };
+  }) => switch (this) {
+    Ok(:final value) => onOk(value),
+    Err(:final failure) => onErr(failure),
+  };
 }
 
 final class Ok<T> extends Result<T> {

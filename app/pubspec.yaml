@@ -10,7 +10,9 @@ dependencies:
   easy_localization: ^3.0.8
   flutter:
     sdk: flutter
+  flutter_onnxruntime: ^1.8.2
   meta: ^1.18.0
+  record: ^7.1.1
 
 dev_dependencies:
   flutter_test:
@@ -22,3 +24,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/translations/
+    - assets/models/

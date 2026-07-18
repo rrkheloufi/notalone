@@ -12,8 +12,9 @@ void main() {
     await EasyLocalization.ensureInitialized();
   });
 
-  testWidgets('l’app démarre et affiche l’écran provisoire en français',
-      (tester) async {
+  testWidgets('l’app démarre et affiche l’écran provisoire en français', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       EasyLocalization(
         supportedLocales: AppLocales.supported,

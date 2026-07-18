@@ -4,5 +4,18 @@
   },
   "home": {
     "placeholder": "Bienvenue dans NotAlone"
+  },
+  "vadDebug": {
+    "title": "Debug VAD (MVP-02)",
+    "open": "Debug VAD (spike MVP-02)",
+    "start": "Démarrer la capture",
+    "stop": "Arrêter",
+    "level": "Niveau",
+    "probability": "Proba parole",
+    "speechActive": "parole détectée",
+    "segmentsTitle": "Segments détectés",
+    "noSegments": "Aucun segment pour l'instant",
+    "segmentLine": "départ {start} s · {duration} ms · {energy} dB",
+    "micPermissionError": "Accès micro refusé : autorise NotAlone dans les réglages système."
   }
 }

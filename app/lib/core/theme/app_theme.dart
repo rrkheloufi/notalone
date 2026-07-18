@@ -11,10 +11,10 @@ abstract final class AppTheme {
   static ThemeData get dark => _build(Brightness.dark);
 
   static ThemeData _build(Brightness brightness) => ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: _seed,
-          brightness: brightness,
-          contrastLevel: 1,
-        ),
-      );
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: _seed,
+      brightness: brightness,
+      contrastLevel: 1,
+    ),
+  );
 }
