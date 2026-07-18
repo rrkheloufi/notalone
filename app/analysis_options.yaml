@@ -1,0 +1,6 @@
+include: package:very_good_analysis/analysis_options.yaml
+
+linter:
+  rules:
+    # cf. cowork/conventions.md : pas de commentaire qui paraphrase le code.
+    public_member_api_docs: false

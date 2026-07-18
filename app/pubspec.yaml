@@ -1,0 +1,24 @@
+name: notalone
+description: "Transcription de conversations de groupe en temps réel pour personnes sourdes et malentendantes. 100 % réseau local."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  easy_localization: ^3.0.8
+  flutter:
+    sdk: flutter
+  meta: ^1.18.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  shared_preferences: ^2.5.5
+  very_good_analysis: ^10.3.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/translations/
