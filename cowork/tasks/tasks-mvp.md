@@ -23,7 +23,7 @@
 
 ### MVP-02 — Spike de dérisquage : VAD temps réel on-device
 
-- **Statut** : 🟧 en cours
+- **Statut** : ✅ fait
 - **Dépend de** : MVP-01
 - **Objectif** : prouver que Silero VAD (ONNX) tourne en continu sur téléphone avec `record` (PCM 16 kHz) : détection début/fin de parole + mesure d'énergie RMS par segment. Écran de debug jetable (niveaux, segments détectés).
 - **Critères d'acceptation** : sur appareil réel, la parole est segmentée avec < 300 ms de retard de détection ; une voix à 1,5 m est distinguable d'une voix à 30 cm par l'énergie ; CPU/batterie raisonnables sur 15 min (observation).
@@ -35,6 +35,8 @@
   - Ajout au socle : `core/command/` (pattern Command du guide Flutter, exigé par les conventions pour les ViewModels).
   - Capture via `record` 7.1.1 (PCM16 16 kHz mono, AGC/débruitage désactivés pour préserver l'énergie ; rien sur disque). Plateforme : `RECORD_AUDIO` (Android), `NSMicrophoneUsageDescription` (iOS), deployment target iOS 16.0 (exigence ONNX Runtime), règles ProGuard ORT. Correctif 19/07 : le Podfile ajouté initialement provoquait une double intégration CocoaPods/Swift Package Manager (« sandbox is not in sync with the Podfile.lock » sur iPhone) — retiré, les plugins iOS passent par **SPM** (voie supportée par flutter_onnxruntime, deployment target 16.0 suffit).
   - Vérifié : analyze 0 issue, 40/40 tests verts (segmenteur exhaustif, RMS, Command, ViewModel avec fakes). Critères « retard < 300 ms », « 30 cm vs 1,5 m », « CPU/batterie 15 min » : à mesurer par Rayan sur appareils réels (go/no-go).
+  - Correctif 19/07 : `ORT_INVALID_ARGUMENT` sur appareil (iOS + Android) au premier `run` — le tenseur `sr` partait en int32 car le plugin mappe une `List<int>` Dart vers int32 ; passage à `Int64List` explicite (risque identifié dès la revue de l'API, non vérifiable hors appareil).
+  - **Validé par Rayan (19/07/2026)** sur appareils réels, après le correctif int64 : les prises de parole sont bien segmentées, de près comme de loin ; énergie mesurée de **−39 dBFS (loin) à −14 dBFS (près)**, croissante avec la proximité du téléphone → le critère « 30 cm vs 1,5 m distinguables » est rempli. Retard de détection et CPU/batterie 15 min non chiffrés formellement, jugés bons à l'usage. **Go/no-go Phase 0 : GO** (les 2 spikes MVP-02 + MVP-03 sont validés).
 
 ### MVP-03 — Spike de dérisquage : session LAN 2 téléphones
 

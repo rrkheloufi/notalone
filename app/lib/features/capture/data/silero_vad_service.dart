@@ -52,7 +52,12 @@ class SileroVadService implements VadService {
     try {
       inputValue = await OrtValue.fromList(input, [1, input.length]);
       stateValue = await OrtValue.fromList(_state, _stateShape);
-      srValue = await OrtValue.fromList([_config.sampleRate], [1]);
+      // Int64List obligatoire : le plugin mappe une List<int> en int32,
+      // que le modèle rejette (sr est déclaré tensor(int64)).
+      srValue = await OrtValue.fromList(
+        Int64List.fromList([_config.sampleRate]),
+        [1],
+      );
       outputs = await session.run({
         'input': inputValue,
         'state': stateValue,
