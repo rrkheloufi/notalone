@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Capture continue de sa propre voix (pipeline VAD → STT, doc 02 §1). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Sockets LAN hôte/invité (doc 02 §4) : requis aussi en release,
+         le template Flutter ne l'accorde qu'en debug/profile. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="notalone"
         android:name="${applicationName}"

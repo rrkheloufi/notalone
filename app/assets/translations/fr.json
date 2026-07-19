@@ -17,5 +17,30 @@
     "noSegments": "Aucun segment pour l'instant",
     "segmentLine": "départ {start} s · {duration} ms · {energy} dB",
     "micPermissionError": "Accès micro refusé : autorise NotAlone dans les réglages système."
+  },
+  "lanDebug": {
+    "hostTitle": "Debug LAN — Hôte (MVP-03)",
+    "guestTitle": "Debug LAN — Invité (MVP-03)",
+    "openHost": "Debug LAN — Hôte (spike MVP-03)",
+    "openGuest": "Debug LAN — Invité (spike MVP-03)",
+    "startServer": "Démarrer la session",
+    "stopServer": "Arrêter la session",
+    "serverAddress": "Adresse : {host}:{port}",
+    "scanHint": "Scanne le QR affiché sur le téléphone hôte",
+    "connecting": "Connexion…",
+    "connected": "Connecté",
+    "disconnected": "Déconnecté de l'hôte",
+    "rescan": "Rescanner",
+    "medianRtt": "RTT médian : {ms} ms",
+    "pingAgain": "Re-mesurer le RTT",
+    "sendHint": "Message de test…",
+    "guestJoined": "Invité {id} connecté",
+    "guestLeft": "Invité {id} déconnecté",
+    "guestMessage": "Invité {id} : {text}",
+    "hostMessage": "Moi : {text}",
+    "ownMessage": "Moi : {text}",
+    "remoteMessage": "Reçu : {text}",
+    "timeoutHint": "Connexion impossible : le WiFi isole peut-être les appareils entre eux. Active le partage de connexion du téléphone hôte, reconnecte les deux téléphones dessus, et rescanne.",
+    "noEvents": "En attente d'invités…"
   }
 }

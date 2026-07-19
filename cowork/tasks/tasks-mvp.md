@@ -33,17 +33,25 @@
   - Runtime ONNX : `flutter_onnxruntime` 1.8.2 retenu (validé avec Rayan) — le package `onnxruntime` pressenti au doc 02 §9 est à l'abandon (dernière publication 03/2024). Modèle **Silero VAD v5** commité en asset (`app/assets/models/silero_vad.onnx`, 2,3 Mo, MIT). Protocole d'appel (contexte glissant 64 samples, état LSTM [2,1,128], `sr` int64) validé contre onnxruntime desktop avant écriture du code Dart.
   - `capture/domain/` pur Dart et pérenne (repris tel quel en MVP-08) : `VadConfig` (seuils par défaut : hystérésis 0,5/0,35, minSpeech 200 ms, minSilence 600 ms — à calibrer en MVP-15), `SpeechSegmenter` (machine à états + énergie RMS dBFS, micro-pauses absorbées, énergie du silence de clôture exclue), interfaces `VadService`/`MicAudioSource`, `AudioLevel`. Jetables : écran `vad_debug_view` + ViewModel.
   - Ajout au socle : `core/command/` (pattern Command du guide Flutter, exigé par les conventions pour les ViewModels).
-  - Capture via `record` 7.1.1 (PCM16 16 kHz mono, AGC/débruitage désactivés pour préserver l'énergie ; rien sur disque). Plateforme : `RECORD_AUDIO` (Android), `NSMicrophoneUsageDescription` (iOS), Podfile iOS 16 + linkage statique et deployment target 16.0 (exigences ONNX Runtime), règles ProGuard ORT.
+  - Capture via `record` 7.1.1 (PCM16 16 kHz mono, AGC/débruitage désactivés pour préserver l'énergie ; rien sur disque). Plateforme : `RECORD_AUDIO` (Android), `NSMicrophoneUsageDescription` (iOS), deployment target iOS 16.0 (exigence ONNX Runtime), règles ProGuard ORT. Correctif 19/07 : le Podfile ajouté initialement provoquait une double intégration CocoaPods/Swift Package Manager (« sandbox is not in sync with the Podfile.lock » sur iPhone) — retiré, les plugins iOS passent par **SPM** (voie supportée par flutter_onnxruntime, deployment target 16.0 suffit).
   - Vérifié : analyze 0 issue, 40/40 tests verts (segmenteur exhaustif, RMS, Command, ViewModel avec fakes). Critères « retard < 300 ms », « 30 cm vs 1,5 m », « CPU/batterie 15 min » : à mesurer par Rayan sur appareils réels (go/no-go).
 
 ### MVP-03 — Spike de dérisquage : session LAN 2 téléphones
 
-- **Statut** : ⬜ à faire
+- **Statut** : ✅ fait
 - **Dépend de** : MVP-01
 - **Objectif** : prouver la chaîne hôte/invité : serveur WebSocket `dart:io` sur le téléphone hôte, QR code affiché (payload IP:port:token), scan par l'invité, échange de messages texte, permission « Local Network » iOS gérée.
 - **Critères d'acceptation** : 2 téléphones réels sur le même WiFi échangent des messages < 200 ms ; le QR suffit (pas de saisie manuelle) ; comportement documenté quand le WiFi isole les clients (R7 du doc 03).
 - **Tests** : unitaires encode/décode du payload QR ; test d'intégration serveur/client en pur Dart (2 isolates).
 - **Manuel (Rayan)** : test sur le WiFi de la maison familiale si possible ; tester aussi en partage de connexion. **Go/no-go** technique à l'issue des 2 spikes.
+- **Réalisé** (19/07/2026 — code terminé, en attente des tests 2 téléphones de Rayan) :
+  - Payload QR : JSON complet du doc 02 §4 `{version, sessionName, host, port, token}` (pas le raccourci « IP:port:token » du titre), dans `session/domain/qr_session_payload.dart` (pérenne) — décodage tolérant (champs inconnus ignorés, version supérieure acceptée), erreurs en `Failure` typées, testé exhaustivement.
+  - Rendu QR : **`pretty_qr_code` 3.6.0** (validé avec Rayan) — `qr_flutter` pressenti au doc 02 §9 n'est plus publié depuis 05/2023. Scan : `mobile_scanner` 7.3.0. Client WS : `web_socket_channel` 3.0.3.
+  - Interfaces `LanServer`/`LanClient` dans `session/domain/` (spike, remplacées par HostServer/GuestClient en MVP-05/06) ; impls `DartIoLanServer` (HttpServer port éphémère, token 128 bits `Random.secure`) et `WebSocketLanClient` (timeout 5 s) dans `session/data/` + `local_ip.dart`. Écart assumé : token vérifié en query string à l'upgrade WS, le vrai `join_request` arrive en MVP-04/05. Protocole texte minimal `{"type":"chat"|"ping"|"pong"}`, RTT mesuré par ping/pong applicatif (médiane sur 5, affichée chez l'invité pour le critère < 200 ms).
+  - **R7 (WiFi isolant) documenté** : un timeout de connexion (TCP accepté mais session muette, ou pas de route) produit `ConnectionTimeoutFailure`, l'écran invité affiche alors : activer le partage de connexion du téléphone hôte, y reconnecter les 2 téléphones, rescanner. Cas reproduit en test d'intégration (« serveur muet »). Plan B hotspot = comportement nominal (le serveur écoute sur toutes les interfaces, `local_ip` préfère 192.168/10/172).
+  - Écrans de debug jetables hôte (QR + journal + envoi) et invité (scan → RTT + messages) ; `Command1` ajouté au socle `core/command/`. Plateforme : `INTERNET` au manifest principal Android (le template ne l'a qu'en debug), `NSCameraUsageDescription` + `NSLocalNetworkUsageDescription` iOS.
+  - Vérifié : analyze 0 issue, 64/64 tests verts dont intégration serveur réel + client dans un **second isolate** (connexion, ping, chat/écho, départ), rejet mauvais token, timeout R7, relais entre 2 invités sans écho à l'émetteur. Critères « < 200 ms sur 2 téléphones réels » et « le QR suffit » : à valider par Rayan (go/no-go des 2 spikes).
+  - **Validé par Rayan (19/07/2026)** sur 2 téléphones réels : scan du QR → connexion → échange de messages OK. (Valeur du RTT médian non consignée — à ajouter ici si utile au go/no-go.) Le build iPhone a nécessité le passage à Swift Package Manager (correctif noté en MVP-02).
 
 ### MVP-04 — Protocole de session (DTOs versionnés)
 

@@ -12,7 +12,10 @@ dependencies:
     sdk: flutter
   flutter_onnxruntime: ^1.8.2
   meta: ^1.18.0
+  mobile_scanner: ^7.3.0
+  pretty_qr_code: ^3.6.0
   record: ^7.1.1
+  web_socket_channel: ^3.0.3
 
 dev_dependencies:
   flutter_test:

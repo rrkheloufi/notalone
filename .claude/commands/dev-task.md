@@ -39,7 +39,7 @@ Si la tâche $ARGUMENTS n'existe pas, liste les IDs disponibles avec leurs statu
 
 ## 6. Clôturer
 
-Dans le fichier de tâches, mets à jour la tâche : statut ✅ **uniquement si** tous les critères vérifiables sans action de Rayan sont satisfaits (sinon reste 🟧 avec la raison), et ajoute une courte section « Réalisé » (date, décisions prises, écarts éventuels).
+Dans le fichier de tâches, mets à jour la tâche : statut ✅ **uniquement si** tous les critères vérifiables sans action de Rayan sont satisfaits (sinon reste 🟧 avec la raison), et ajoute une courte section « Réalisé » (date, décisions prises, écarts éventuels). Indexe les changements mais ne commit pas.
 
 Termine ta réponse par exactement quatre blocs :
 

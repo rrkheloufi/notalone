@@ -28,6 +28,10 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>NotAlone capte ta voix pendant une conversation pour l'afficher en texte chez le lecteur. L'audio ne quitte jamais ton téléphone.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>NotAlone utilise l'appareil photo uniquement pour scanner le QR code qui permet de rejoindre une conversation.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>NotAlone échange le texte de la conversation directement entre les téléphones du foyer, sans passer par internet.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
