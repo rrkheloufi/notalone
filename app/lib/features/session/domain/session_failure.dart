@@ -24,3 +24,18 @@ final class ConnectionTimeoutFailure extends SessionFailure {
 final class ConnectionFailure extends SessionFailure {
   const ConnectionFailure(String details) : super('Connexion : $details');
 }
+
+final class MessageMalformedFailure extends SessionFailure {
+  const MessageMalformedFailure(String details)
+    : super('Message invalide : $details');
+}
+
+/// Type absent de la table du codec : corruption ou message d'une version
+/// future — l'appelant peut l'ignorer sans le confondre avec un message
+/// corrompu (tolérance ascendante, cf. cowork/02-architecture.md §4).
+final class UnknownMessageTypeFailure extends SessionFailure {
+  const UnknownMessageTypeFailure(this.messageType)
+    : super('Type de message inconnu : $messageType');
+
+  final String messageType;
+}

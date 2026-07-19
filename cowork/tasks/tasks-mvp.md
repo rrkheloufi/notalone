@@ -57,12 +57,17 @@
 
 ### MVP-04 — Protocole de session (DTOs versionnés)
 
-- **Statut** : ⬜ à faire
+- **Statut** : ✅ fait
 - **Dépend de** : MVP-03
 - **Objectif** : implémenter dans `session/domain/` le protocole complet du doc 02 §4 : enveloppe `{v, type, payload}`, DTOs immutables (`JoinRequest`, `JoinAck`, `ClockSync`, `SpeechSegmentDto`, `MicStatus`, `SessionEnd`, `Ping/Pong`), sérialisation JSON, tolérance aux champs inconnus.
 - **Critères d'acceptation** : round-trip JSON exact pour chaque message ; un message de version supérieure avec champs inconnus est accepté ; un message malformé produit une `Failure` typée (jamais d'exception).
 - **Tests** : unitaires exhaustifs par DTO (round-trip, malformés, champs inconnus) — c'est le contrat du produit, viser 100 %.
 - **Manuel (Rayan)** : —
+- **Réalisé** (19/07/2026) :
+  - `session/domain/protocol/` : base sealed `SessionMessage` (switch exhaustifs garantis pour MVP-05/06, DTOs en `part` — un fichier par message) + `SessionMessageCodec` (enveloppe `{v, type, payload}`, table type→parseur, jamais d'exception). 8 messages : `JoinRequest`, `JoinAck`, `ClockSync`, `SpeechSegmentDto`, `MicStatus`, `SessionEnd`, `Ping`, `Pong` — immutables, égalité par valeur, `toJson`/`fromJson` manuels (doc 02 §6).
+  - Décisions validées avec Rayan : `clock_sync` = un seul type wire, NTP 4 horodatages — l'hôte envoie `{seq, tHostSentMs}`, l'invité complète `{tGuestReceivedMs, tGuestSentMs}` (ensemble ou absents ensemble), offset `((t1−t0)+(t2−t3))/2` médiane ×5 calculé en MVP-09 ; `clockOffsetProbe` du `join_ack` = horodatage hôte à l'émission de l'ack (probe n°0) ; type de message inconnu → `UnknownMessageTypeFailure` dédiée (ignorable par l'appelant sans le confondre avec de la corruption), valeur d'enum inconnue → `MessageMalformedFailure` (strict : un émetteur v2 doit rester compatible v1 sur les enums).
+  - Détails de contrat : seul `SpeechSegmentDto` est suffixé (collision à venir avec l'entité `SpeechSegment` de capture, MVP-08) ; `engine` en chaîne libre ; `participantId`/`segmentId` chaînes opaques ; `energyDb` décodé depuis tout `num` JSON ; `tEndMs ≥ tStartMs` exigé ; `ping`/`pong` portent un `seq` (appariement keepalive MVP-05 + mesure RTT).
+  - Vérifié : analyze 0 issue, 124/124 tests verts, couverture lignes 100 % sur les 9 fichiers du protocole.
 
 ### MVP-05 — Serveur hôte : cycle de vie de session
 
