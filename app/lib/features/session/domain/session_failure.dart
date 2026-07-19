@@ -30,6 +30,21 @@ final class MessageMalformedFailure extends SessionFailure {
     : super('Message invalide : $details');
 }
 
+/// Session complète : la limite du `SessionConfig` compte l'hôte, qui capte
+/// sa propre voix comme les autres (doc 02 §1).
+final class SessionFullFailure extends SessionFailure {
+  const SessionFullFailure(this.maxParticipants)
+    : super('Session complète ($maxParticipants participants maximum)');
+
+  final int maxParticipants;
+}
+
+/// Token du `join_request` différent de celui du QR : QR périmé d'une session
+/// précédente, ou tentative d'entrée non sollicitée.
+final class InvalidTokenFailure extends SessionFailure {
+  const InvalidTokenFailure() : super('Code de session invalide');
+}
+
 /// Type absent de la table du codec : corruption ou message d'une version
 /// future — l'appelant peut l'ignorer sans le confondre avec un message
 /// corrompu (tolérance ascendante, cf. cowork/02-architecture.md §4).
