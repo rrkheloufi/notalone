@@ -6,7 +6,7 @@ import 'package:notalone/core/l10n/l10n_keys.dart';
 import 'package:notalone/core/result/failure.dart';
 import 'package:notalone/features/capture/domain/capture_failure.dart';
 import 'package:notalone/features/capture/domain/capture_status.dart';
-import 'package:notalone/features/capture/domain/speech_segment.dart';
+import 'package:notalone/features/capture/domain/stt_failure.dart';
 import 'package:notalone/features/capture/presentation/capture_viewmodel.dart';
 
 /// Écran de capture de l'invité : ce que son micro entend. Le transcript
@@ -50,16 +50,31 @@ class _CaptureViewState extends State<CaptureView> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (failure != null) _FailureBanner(failure: failure),
+                  if (viewModel.sttFailure case final sttFailure?)
+                    _FailureBanner(failure: sttFailure),
                   _StatusRow(viewModel: viewModel),
                   const SizedBox(height: 16),
                   _Controls(viewModel: viewModel),
                   const SizedBox(height: 16),
-                  Text(
-                    L10nKeys.captureSegmentsTitle.tr(),
-                    style: Theme.of(context).textTheme.titleMedium,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          L10nKeys.captureSegmentsTitle.tr(),
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      if (viewModel.isCapturing)
+                        Text(
+                          L10nKeys.captureEngine.tr(
+                            namedArgs: {'engine': viewModel.engine},
+                          ),
+                          style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 8),
-                  Expanded(child: _SegmentList(segments: viewModel.segments)),
+                  Expanded(child: _SegmentList(viewModel: viewModel)),
                 ],
               ),
             );
@@ -78,9 +93,17 @@ class _FailureBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final message = failure is MicPermissionFailure
-        ? L10nKeys.captureMicPermissionError.tr()
-        : failure.message;
+    // Les pannes qui appellent un geste de l'invité méritent une consigne, pas
+    // le message technique de la Failure.
+    final message = switch (failure) {
+      MicPermissionFailure() => L10nKeys.captureMicPermissionError.tr(),
+      SttModelMissingFailure() => L10nKeys.captureSttModelMissing.tr(),
+      SttPermissionFailure() => L10nKeys.captureSttPermissionError.tr(),
+      SttUnavailableFailure() => L10nKeys.captureSttUnavailable.tr(),
+      SttAudioSourceUnsupportedFailure() =>
+        L10nKeys.captureSttAudioSourceUnsupported.tr(),
+      _ => failure.message,
+    };
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 12),
@@ -171,9 +194,7 @@ class _Controls extends StatelessWidget {
                 : () => unawaited(viewModel.toggleMuteCommand.execute()),
             icon: Icon(muted ? Icons.mic : Icons.mic_off),
             label: Text(
-              muted
-                  ? L10nKeys.captureUnmute.tr()
-                  : L10nKeys.captureMute.tr(),
+              muted ? L10nKeys.captureUnmute.tr() : L10nKeys.captureMute.tr(),
             ),
           ),
         ),
@@ -193,24 +214,39 @@ class _Controls extends StatelessWidget {
 }
 
 class _SegmentList extends StatelessWidget {
-  const _SegmentList({required this.segments});
+  const _SegmentList({required this.viewModel});
 
-  final List<SpeechSegment> segments;
+  final CaptureViewModel viewModel;
 
   @override
   Widget build(BuildContext context) {
+    final segments = viewModel.segments;
     if (segments.isEmpty) {
       return Center(child: Text(L10nKeys.captureNoSegments.tr()));
     }
+    final theme = Theme.of(context);
     return ListView.builder(
       itemCount: segments.length,
       itemBuilder: (context, index) {
         final segment = segments[index];
         final at = DateTime.fromMillisecondsSinceEpoch(segment.tStartMs);
+        final transcribed = viewModel.transcriptionOf(segment.segmentId);
         return ListTile(
           dense: true,
           leading: const Icon(Icons.graphic_eq),
-          title: Text(
+          // Le texte prime sur les métadonnées : c'est lui qu'on relit pendant
+          // le test des 10 phrases, l'énergie et la durée ne servent qu'à
+          // objectiver la calibration (MVP-15).
+          title: transcribed == null
+              ? Text(
+                  L10nKeys.captureAwaitingTranscription.tr(),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.outline,
+                    fontStyle: FontStyle.italic,
+                  ),
+                )
+              : Text(transcribed.text, style: theme.textTheme.bodyLarge),
+          subtitle: Text(
             L10nKeys.captureSegmentLine.tr(
               namedArgs: {
                 'time': DateFormat.Hms().format(at),

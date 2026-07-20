@@ -134,4 +134,18 @@ abstract final class L10nKeys {
   static const String captureSegmentLine = 'capture.segmentLine';
 
   static const String captureMicPermissionError = 'capture.micPermissionError';
+
+  static const String captureAwaitingTranscription =
+      'capture.awaitingTranscription';
+
+  static const String captureEngine = 'capture.engine';
+
+  static const String captureSttModelMissing = 'capture.sttModelMissing';
+
+  static const String captureSttPermissionError = 'capture.sttPermissionError';
+
+  static const String captureSttUnavailable = 'capture.sttUnavailable';
+
+  static const String captureSttAudioSourceUnsupported =
+      'capture.sttAudioSourceUnsupported';
 }

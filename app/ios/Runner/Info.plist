@@ -35,6 +35,11 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<!-- Exigée par SFSpeechRecognizer (iOS < 26) même en reconnaissance
+	     100 % on-device : `requiresOnDeviceRecognition` ne dispense pas de
+	     l'autorisation. Le chemin SpeechAnalyzer (iOS 26+) ne la demande pas. -->
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>NotAlone transcrit ta voix en texte directement sur ton téléphone, sans l'envoyer nulle part.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>NotAlone utilise l'appareil photo uniquement pour scanner le QR code qui permet de rejoindre une conversation.</string>
 	<key>NSLocalNetworkUsageDescription</key>

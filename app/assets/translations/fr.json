@@ -85,6 +85,12 @@
     "segmentsTitle": "Prises de parole captées",
     "noSegments": "Aucune prise de parole pour l’instant",
     "segmentLine": "{time} · {duration} ms · {energy} dB",
-    "micPermissionError": "Accès micro refusé : autorise NotAlone dans les réglages système."
+    "micPermissionError": "Accès micro refusé : autorise NotAlone dans les réglages système.",
+    "awaitingTranscription": "transcription en cours…",
+    "engine": "Moteur : {engine}",
+    "sttModelMissing": "Le modèle de reconnaissance vocale française n’est pas installé sur ce téléphone. Installe-le depuis les réglages système, puis relance la capture.",
+    "sttPermissionError": "Reconnaissance vocale refusée : autorise NotAlone dans les réglages système, sinon ta voix ne sera pas transcrite.",
+    "sttUnavailable": "Ce téléphone ne propose pas de reconnaissance vocale hors ligne. Tes prises de parole sont captées mais pas transcrites.",
+    "sttAudioSourceUnsupported": "Le moteur de reconnaissance de ce téléphone refuse l’audio de l’app. Tes prises de parole sont captées mais pas transcrites."
   }
 }

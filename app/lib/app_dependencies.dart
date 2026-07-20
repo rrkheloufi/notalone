@@ -3,7 +3,9 @@ import 'package:notalone/core/l10n/l10n_keys.dart';
 import 'package:notalone/features/capture/data/background_capture_guard_factory.dart';
 import 'package:notalone/features/capture/data/record_mic_datasource.dart';
 import 'package:notalone/features/capture/data/silero_vad_service.dart';
+import 'package:notalone/features/capture/data/stt_engine_factory.dart';
 import 'package:notalone/features/capture/domain/capture_speech_use_case.dart';
+import 'package:notalone/features/capture/domain/transcribe_segments_use_case.dart';
 import 'package:notalone/features/capture/domain/vad_config.dart';
 import 'package:notalone/features/capture/presentation/capture_view.dart';
 import 'package:notalone/features/capture/presentation/capture_viewmodel.dart';
@@ -88,6 +90,7 @@ final class AppDependencies {
           notificationText: L10nKeys.captureStatusActive.tr(),
         ),
       ),
+      transcribe: TranscribeSegmentsUseCase(engine: createSttEngine()),
     );
   }
 

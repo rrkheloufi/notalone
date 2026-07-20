@@ -2,16 +2,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:notalone/features/capture/domain/capture_failure.dart';
 import 'package:notalone/features/capture/domain/capture_speech_use_case.dart';
 import 'package:notalone/features/capture/domain/capture_status.dart';
+import 'package:notalone/features/capture/domain/stt_failure.dart';
+import 'package:notalone/features/capture/domain/transcribe_segments_use_case.dart';
 import 'package:notalone/features/capture/presentation/capture_viewmodel.dart';
 
 import '../../../fixtures/audio_fixtures.dart';
 import '../../../helpers/fake_capture_sources.dart';
+import '../../../helpers/fake_stt_engine.dart';
 
 void main() {
   late FakeMicAudioSource mic;
   late FakeVadService vad;
   late FakeBackgroundCaptureGuard guard;
   late CaptureSpeechUseCase capture;
+  late FakeSttEngine stt;
   late CaptureViewModel viewModel;
 
   Future<void> speak({double amplitude = AudioFixtures.loudVoice}) async {
@@ -27,7 +31,11 @@ void main() {
     vad = FakeVadService();
     guard = FakeBackgroundCaptureGuard();
     capture = CaptureSpeechUseCase(mic: mic, vad: vad, guard: guard);
-    viewModel = CaptureViewModel(capture: capture);
+    stt = FakeSttEngine();
+    viewModel = CaptureViewModel(
+      capture: capture,
+      transcribe: TranscribeSegmentsUseCase(engine: stt),
+    );
   });
 
   tearDown(() async {
@@ -134,6 +142,93 @@ void main() {
     await mic.emit(AudioFixtures.frame(AudioFixtures.loudVoice));
 
     expect(viewModel.streamFailure, isA<VadInferenceFailure>());
+  });
+
+  test('un segment capté est transcrit et son texte devient lisible', () async {
+    stt.script(['passe-moi le sel']);
+    await viewModel.startCommand.execute();
+
+    await speak();
+    await FakeMicAudioSource.pump();
+
+    final segment = viewModel.segments.single;
+    expect(
+      viewModel.transcriptionOf(segment.segmentId)?.text,
+      'passe-moi le sel',
+    );
+  });
+
+  test('le texte n’est pas encore là au moment où le segment paraît', () async {
+    stt.hold();
+    await viewModel.startCommand.execute();
+
+    await speak();
+
+    final segment = viewModel.segments.single;
+    expect(viewModel.transcriptionOf(segment.segmentId), isNull);
+
+    stt.release();
+    await FakeMicAudioSource.pump();
+
+    expect(viewModel.transcriptionOf(segment.segmentId), isNotNull);
+  });
+
+  test('startCommand prépare le moteur avant le micro', () async {
+    await viewModel.startCommand.execute();
+
+    expect(stt.prepareCount, 1);
+    expect(viewModel.sttFailure, isNull);
+    expect(viewModel.engine, 'fake');
+  });
+
+  test('modèle FR absent : panne affichée mais capture démarrée', () async {
+    stt.prepareFailure = const SttModelMissingFailure('fr-FR');
+
+    await viewModel.startCommand.execute();
+
+    expect(viewModel.sttFailure, isA<SttModelMissingFailure>());
+    // Le micro tourne quand même : l'invité reste supervisé côté hôte et
+    // pourra basculer sur le moteur cloud sans relancer sa session (MVP-14).
+    expect(viewModel.isCapturing, isTrue);
+    expect(viewModel.startCommand.completed, isTrue);
+  });
+
+  test(
+    'une panne de transcription est exposée puis effacée au succès',
+    () async {
+      stt
+        ..transcriptionFailure = const SttTranscriptionFailure('moteur occupé')
+        ..failAtCall = 1;
+      await viewModel.startCommand.execute();
+
+      await speak();
+      await FakeMicAudioSource.pump();
+      expect(viewModel.sttFailure, isA<SttTranscriptionFailure>());
+
+      stt
+        ..transcriptionFailure = null
+        ..script(['ça remarche']);
+      await speak();
+      await FakeMicAudioSource.pump();
+
+      expect(viewModel.sttFailure, isNull);
+    },
+  );
+
+  test('le texte des segments oubliés est libéré avec eux', () async {
+    await viewModel.startCommand.execute();
+    await speak();
+    await FakeMicAudioSource.pump();
+    final oldest = viewModel.segments.single.segmentId;
+    expect(viewModel.transcriptionOf(oldest), isNotNull);
+
+    for (var i = 0; i < CaptureViewModel.maxVisibleSegments; i++) {
+      await speak();
+    }
+    await FakeMicAudioSource.pump();
+
+    // Sans nettoyage, la table de textes grossirait pendant tout le repas.
+    expect(viewModel.transcriptionOf(oldest), isNull);
   });
 
   test('une reprise efface la panne affichée', () async {

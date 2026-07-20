@@ -64,5 +64,11 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Sans cette déclaration, `isOnDeviceRecognitionAvailable` rend faux
+             à partir d'Android 11 : le service de reconnaissance est un autre
+             paquet, invisible par défaut (package visibility). -->
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
+        </intent>
     </queries>
 </manifest>
