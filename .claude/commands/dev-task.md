@@ -19,11 +19,11 @@ Si la tâche $ARGUMENTS n'existe pas, liste les IDs disponibles avec leurs statu
 - Vérifie que la tâche n'est pas déjà ✅. Si elle est 🟧, demande à Rayan si on reprend là où on s'était arrêté.
 - Relève les « Manuel (Rayan) » **préalables** au développement (compte à créer, clé API, appareil requis) : si le développement en dépend, demande confirmation qu'ils sont faits avant de continuer.
 
-## 3. Lever les ambiguïtés et valider le plan — AVANT de coder
+## 3. Lever les ambiguïtés et annoncer le plan — AVANT de coder
 
-- Liste les points ambigus ou les décisions ouvertes de la tâche (choix de package, comportement UX non spécifié, seuil non défini...). Pose ces questions à Rayan maintenant.
-- Présente ensuite un plan d'implémentation court : fichiers créés/modifiés, approche, tests prévus.
-- **Attends la validation explicite de Rayan avant d'écrire la moindre ligne de code.** S'il n'y a aucune ambiguïté, dis-le et présente quand même le plan pour validation.
+- Liste les points ambigus ou les décisions ouvertes de la tâche (choix de package, comportement UX non spécifié, seuil non défini...). Pose ces questions à Rayan **et attends ses réponses** : elles changent le code produit.
+- Présente ensuite un plan d'implémentation court (fichiers créés/modifiés, approche, tests prévus) puis **enchaîne directement sur le développement** : Rayan n'a pas à valider le plan. S'il n'y a aucune ambiguïté, dis-le, présente le plan et code.
+- Seule exception qui impose de s'arrêter et de demander : une décision qui **dévie du cadrage** `cowork/` (CLAUDE.md règle 10).
 
 ## 4. Développer
 

@@ -155,12 +155,22 @@
 
 ### MVP-09 — Horloge synchronisée et réordonnancement
 
-- **Statut** : ⬜ à faire
+- **Statut** : ✅ fait
 - **Dépend de** : MVP-04
 - **Objectif** : `SyncedClock` (échange `clock_sync` ×5 à la connexion, offset médian par invité) et buffer de réordonnancement côté hôte (fenêtre 1,5 s configurable) dans `transcript/domain/`. Pur Dart.
 - **Critères d'acceptation** : offsets simulés de ±2 s corrigés à ±50 ms près ; les entrées sortent du buffer dans l'ordre temporel corrigé ; une entrée arrivée après la fenêtre est insérée sans réordonner ce qui est déjà figé (marquée tardive).
 - **Tests** : unitaires exhaustifs (offsets extrêmes, jitter, arrivées tardives, horloges qui dérivent).
 - **Manuel (Rayan)** : —
+- **Réalisé** (20/07/2026) :
+  - Décisions validées avec Rayan avant de coder : (1) **périmètre domaine pur** — MVP-09 ne touche ni le serveur hôte ni le client invité, qui continuent de remonter les `clock_sync` en événement sans y répondre ; c'est **MVP-11**, qui possède le pipeline de fusion, qui pilotera l'émission des 5 sondes et la réponse de l'invité (les critères d'acceptation de MVP-09 sont tous simulés, et câbler ici aurait préempté des choix d'architecture appartenant à MVP-11) ; (2) `SyncedClock` va dans **`transcript/domain/`** comme le dit la tâche, pas dans `core/utils/` comme le dit l'arborescence du doc 02 §7 — c'est de la logique de fusion, elle vit avec le réordonnancement et la dédup qui la consomment (**écart à reporter dans le doc 02 §7**, non corrigé sans accord) ; (3) une entrée tardive est **émise, marquée `isLate`**, jamais abandonnée — le lecteur est sourd, ce fil est tout ce qu'il a ; (4) buffer **passif** (`release(nowMs)`) plutôt que `Stream` cadencé par un ticker : déterministe à tester, et MVP-11 choisira sa cadence.
+  - `ClockProbe` exprime l'aller-retour en **nombres, pas en DTO `ClockSync`** : `transcript/` ne dépend pas du protocole de `session/` (règle 3, précédent MVP-08 où `capture/` n'importe jamais `session/`). Le mapping DTO ↔ sonde se fera au câblage.
+  - `SyncedClock` : médiane sur une **fenêtre glissante** des 5 dernières sondes (et non les 5 premières de la connexion). C'est ce qui fait suivre une horloge qui dérive ou un téléphone qui se remet à l'heure en cours de repas — testé (5 sondes à +1000 ms puis 5 à +1300 ms → l'estimation bascule). Offset gardé en `double` : arrondir chaque mesure avant la médiane ajouterait un biais gratuit.
+  - Sondes physiquement impossibles (t3 < t0, t2 < t1, temps de traitement invité supérieur à l'aller-retour) **refusées** via `ClockProbeInvalidFailure` plutôt qu'ignorées : une seule mesure aberrante suffirait à décaler la médiane, et l'appelant doit pouvoir la distinguer.
+  - **Invité non encore synchronisé : l'horodatage est rendu tel quel**, pas refusé. Un segment mal placé vaut mieux qu'un segment perdu ; `isSynced()` dit à l'appelant si la correction est fiable.
+  - `ReorderBuffer<T>` **générique** (extracteur d'horodatage fourni au constructeur) : MVP-11 reste libre de définir `TranscriptEntry` sans que MVP-09 la préempte. Une tardive sort **en tête** du lot suivant : elle précède chronologiquement tout ce qui l'accompagne, c'est le placement le plus juste qui ne touche pas au figé. Une tardive ne fait **pas** reculer la ligne de gel. `nextDueMs` expose la prochaine échéance utile pour que MVP-11 programme un réveil au lieu d'interroger le buffer en boucle.
+  - Test de charge : 8 flux × 900 segments (~2 h) → 7 200 entrées, ordre respecté, 0 tardive, buffer jamais au-delà de 16 entrées en attente (le critère « pas de dérive mémoire » de MVP-11 est déjà tenu côté buffer).
+  - Vérifié : analyze 0 issue, **367/367 tests verts** (326 avant, 41 ajoutés), **100 % de couverture lignes** sur les 5 fichiers créés.
+  - Non fait volontairement (revient à MVP-11) : l'invité ne répond toujours pas aux `clock_sync` et l'hôte n'en émet aucun — `SyncedClock` n'est pour l'instant alimenté que par les tests, et n'est pas encore composé dans `app_dependencies.dart`.
 
 ### MVP-10 — Moteurs STT natifs (iOS + Android)
 
@@ -177,6 +187,7 @@
 - **Dépend de** : MVP-09
 - **Objectif** : `MergeTranscriptsUseCase` dans `transcript/domain/` : consomme les `speech_segment` de tous les invités, applique horloge corrigée + réordonnancement (MVP-09) + déduplication (chevauchement IoU × similarité Levenshtein normalisée, seuils dans `DedupConfig`) → flux de `TranscriptEntry` attribués. Les partiels ne participent pas à la dédup. Cœur du produit, pur Dart.
 - **Critères d'acceptation** : sur fixtures scriptées (mêmes phrases captées par 2 « micros » avec décalages/variantes de texte), taux de doublons en sortie < 5 % sans perte de vraies phrases ; le segment le plus énergique gagne l'attribution ; performances : 8 flux × 2 h simulés sans dérive mémoire.
+- **À reprendre de MVP-09** (décidé avec Rayan le 20/07/2026) : MVP-11 hérite du **câblage de l'échange `clock_sync`**, laissé de côté par MVP-09 qui s'est tenu au domaine pur — faire émettre les 5 sondes par l'hôte à l'admission, faire répondre automatiquement le client invité (symétrique du `ping`/`pong`), mapper le DTO `ClockSync` vers `SyncedClock.registerProbe` et composer le tout dans `app_dependencies.dart`.
 - **Tests** : la suite la plus fournie du projet — scénarios cross-talk, phrases simultanées distinctes (ne PAS dédupliquer), textes proches mais temporellement disjoints (ne PAS dédupliquer), stress 8 flux. ≥ 90 % de couverture.
 - **Manuel (Rayan)** : relire les scénarios de fixtures et confirmer qu'ils reflètent un vrai repas.
 
