@@ -1,10 +1,12 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:notalone/core/l10n/l10n_keys.dart';
+import 'package:notalone/features/capture/data/background_capture_guard_factory.dart';
 import 'package:notalone/features/capture/data/record_mic_datasource.dart';
 import 'package:notalone/features/capture/data/silero_vad_service.dart';
+import 'package:notalone/features/capture/domain/capture_speech_use_case.dart';
 import 'package:notalone/features/capture/domain/vad_config.dart';
-import 'package:notalone/features/capture/presentation/vad_debug_view.dart';
-import 'package:notalone/features/capture/presentation/vad_debug_viewmodel.dart';
+import 'package:notalone/features/capture/presentation/capture_view.dart';
+import 'package:notalone/features/capture/presentation/capture_viewmodel.dart';
 import 'package:notalone/features/onboarding/data/permission_handler_service.dart';
 import 'package:notalone/features/onboarding/data/shared_preferences_user_profile_repository.dart';
 import 'package:notalone/features/onboarding/domain/permission_service.dart';
@@ -72,17 +74,20 @@ final class AppDependencies {
       microphoneGate: microphoneGate,
     ),
     settings: () => SettingsView(viewModel: createSettingsViewModel()),
-    vadDebug: () => VadDebugView(viewModel: createVadDebugViewModel()),
+    capture: () => CaptureView(viewModel: createCaptureViewModel()),
   );
 
-  /// Câblage jetable de l'écran de debug du spike MVP-02, remplacé par le
-  /// vrai graphe capture/ en MVP-08.
-  VadDebugViewModel createVadDebugViewModel() {
+  CaptureViewModel createCaptureViewModel() {
     const config = VadConfig();
-    return VadDebugViewModel(
-      mic: RecordMicDatasource(),
-      vad: SileroVadService(config: config),
-      config: config,
+    return CaptureViewModel(
+      capture: CaptureSpeechUseCase(
+        mic: RecordMicDatasource(),
+        vad: SileroVadService(config: config),
+        guard: createBackgroundCaptureGuard(
+          notificationTitle: L10nKeys.appTitle.tr(),
+          notificationText: L10nKeys.captureStatusActive.tr(),
+        ),
+      ),
     );
   }
 

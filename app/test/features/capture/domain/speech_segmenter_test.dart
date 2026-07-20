@@ -188,4 +188,140 @@ void main() {
   test('une frame vide est ignorée', () {
     expect(segmenter.addFrame(Float32List(0), speech), isNull);
   });
+
+  group('buffer audio', () {
+    test('le segment porte le pré-roll puis la parole puis la clôture', () {
+      // 10 frames de silence audible (bruit de salle) avant la parole : le
+      // pré-roll ne doit en garder que les 200 dernières ms.
+      final events = feed(segmenter, [
+        ...repeat(10, 0.1, silence),
+        ...repeat(10, 0.5, speech),
+        ...repeat(19, 0, silence),
+      ]);
+
+      final samples = (events[1] as SpeechEnded).segment.samples;
+      const preRoll = 3200; // 200 ms à 16 kHz
+      expect(preRoll, config.preRollSamples);
+      expect(samples, hasLength(preRoll + (10 + 19) * config.frameSize));
+      expect(samples.take(preRoll), everyElement(closeTo(0.1, 1e-6)));
+      expect(
+        samples.skip(preRoll).take(10 * config.frameSize),
+        everyElement(closeTo(0.5, 1e-6)),
+      );
+      expect(samples.skip(preRoll + 10 * config.frameSize), everyElement(0));
+    });
+
+    test('un pré-roll plus court que sa fenêtre est pris tel quel', () {
+      // Deux frames seulement avant la parole : 1024 samples, pas 3200.
+      final events = feed(segmenter, [
+        ...repeat(2, 0.1, silence),
+        ...repeat(10, 0.5, speech),
+        ...repeat(19, 0, silence),
+      ]);
+
+      final samples = (events[1] as SpeechEnded).segment.samples;
+      expect(samples, hasLength(2 * config.frameSize + 29 * config.frameSize));
+      expect(
+        samples.take(2 * config.frameSize),
+        everyElement(closeTo(0.1, 1e-6)),
+      );
+    });
+
+    test('un candidat abandonné ne fuit pas dans le segment suivant', () {
+      final events = feed(segmenter, [
+        ...repeat(3, 0.9, speech), // candidat trop court, abandonné
+        ...repeat(30, 0, silence),
+        ...repeat(10, 0.5, speech),
+        ...repeat(19, 0, silence),
+      ]);
+
+      final samples = (events[1] as SpeechEnded).segment.samples;
+      expect(
+        samples,
+        hasLength(config.preRollSamples + 29 * config.frameSize),
+      );
+      // Le pré-roll ne contient que du silence : la salve à 0,9 est bien plus
+      // ancienne que 200 ms et a été chassée du tampon circulaire.
+      expect(samples.take(config.preRollSamples), everyElement(0));
+    });
+
+    test('pré-roll désactivé → le segment commence à la parole', () {
+      final noPreRoll = SpeechSegmenter(config: const VadConfig(preRollMs: 0));
+      final events = feed(noPreRoll, [
+        ...repeat(10, 0.1, silence),
+        ...repeat(10, 0.5, speech),
+        ...repeat(19, 0, silence),
+      ]);
+
+      final samples = (events[1] as SpeechEnded).segment.samples;
+      expect(samples, hasLength(29 * config.frameSize));
+      expect(
+        samples.take(10 * config.frameSize),
+        everyElement(closeTo(0.5, 1e-6)),
+      );
+    });
+  });
+
+  group('découpe forcée', () {
+    // 500 ms → coupure toutes les 16 frames au plus (15,625 arrondi).
+    const short = VadConfig(maxSegmentMs: 500);
+
+    test('une tirade est coupée en segments qui ne dépassent pas la borne', () {
+      final long = SpeechSegmenter(config: short);
+      final events = feed(long, repeat(100, 0.5, speech));
+
+      final ended = events.whereType<SpeechEnded>().toList();
+      expect(ended, isNotEmpty);
+      for (final event in ended) {
+        expect(event.segment.durationMs, lessThanOrEqualTo(short.maxSegmentMs));
+      }
+    });
+
+    test('la parole ne paraît jamais interrompue par une découpe', () {
+      final long = SpeechSegmenter(config: short);
+      final events = feed(long, repeat(100, 0.5, speech));
+
+      // Un seul début : les découpes suivantes n'en réémettent pas.
+      expect(events.whereType<SpeechStarted>(), hasLength(1));
+      expect(long.isSpeaking, isTrue);
+    });
+
+    test('les segments découpés se suivent sans trou ni recouvrement', () {
+      final long = SpeechSegmenter(config: short);
+      final events = feed(long, repeat(100, 0.5, speech));
+      final ended = events.whereType<SpeechEnded>().toList();
+
+      for (var i = 1; i < ended.length; i++) {
+        expect(ended[i].segment.tStartMs, ended[i - 1].segment.tEndMs);
+      }
+    });
+
+    test('chaque morceau garde son propre audio', () {
+      final long = SpeechSegmenter(config: short);
+      final events = feed(long, repeat(100, 0.5, speech));
+      final ended = events.whereType<SpeechEnded>().toList();
+
+      // Le premier porte le pré-roll, les suivants enchaînent sans (l'audio
+      // est continu, il n'y a rien à rattraper).
+      expect(ended.first.segment.samples.length, greaterThan(0));
+      for (final event in ended.skip(1)) {
+        final durationSamples =
+            event.segment.durationMs * short.sampleRate ~/ 1000;
+        expect(event.segment.samples.length, greaterThanOrEqualTo(
+          durationSamples,
+        ));
+      }
+    });
+
+    test('la borne par défaut tient le critère « segments < 15 s »', () {
+      final long = SpeechSegmenter(config: config);
+      final events = feed(long, repeat(600, 0.5, speech)); // 19,2 s
+      final ended = events.whereType<SpeechEnded>().toList();
+
+      expect(ended, isNotEmpty);
+      for (final event in ended) {
+        expect(event.segment.durationMs, lessThan(15000));
+      }
+    });
+  });
 }

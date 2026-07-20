@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:notalone/core/result/result.dart';
@@ -10,8 +11,20 @@ import 'package:record/record.dart';
 /// écrit sur disque (CLAUDE.md règle 2). AGC, annulation d'écho et
 /// réduction de bruit restent désactivés (défauts de `RecordConfig`) :
 /// l'énergie brute doit refléter la distance à la bouche (doc 02 §1).
+///
+/// Les interruptions sont déléguées au package, qui fait la même chose des
+/// deux côtés : il observe `AVAudioSession.interruptionNotification` sur iOS
+/// et l'`AudioFocusRequest` sur Android, met la capture en pause à la perte
+/// et la reprend au retour. C'est ce qui évite un platform channel maison
+/// pour le `mic_status` (doc 02 §8).
 class RecordMicDatasource implements MicAudioSource {
   AudioRecorder? _recorder;
+  StreamSubscription<RecordState>? _stateSubscription;
+
+  final _states = StreamController<MicSourceState>.broadcast();
+
+  @override
+  Stream<MicSourceState> get state => _states.stream;
 
   @override
   Future<Result<Stream<Float32List>>> start({
@@ -25,11 +38,15 @@ class RecordMicDatasource implements MicAudioSource {
       if (!await recorder.hasPermission()) {
         return const Result.err(MicPermissionFailure());
       }
+      _stateSubscription = recorder.onStateChanged().listen(_onRecordState);
       final bytes = await recorder.startStream(
         RecordConfig(
           encoder: AudioEncoder.pcm16bits,
           sampleRate: sampleRate,
           numChannels: 1,
+          // Sans quoi une interruption arrête la capture pour de bon : c'est
+          // ce mode qui rend la reprise automatique après un appel entrant.
+          audioInterruption: AudioInterruptionMode.pauseResume,
         ),
       );
       return Result.ok(_frames(bytes, frameSize));
@@ -42,6 +59,8 @@ class RecordMicDatasource implements MicAudioSource {
   Future<void> stop() async {
     final recorder = _recorder;
     _recorder = null;
+    await _stateSubscription?.cancel();
+    _stateSubscription = null;
     if (recorder == null) return;
     try {
       await recorder.stop();
@@ -49,6 +68,20 @@ class RecordMicDatasource implements MicAudioSource {
     } on Exception {
       // Arrêt best-effort : le recorder est abandonné quoi qu'il arrive.
     }
+  }
+
+  Future<void> dispose() async {
+    await stop();
+    await _states.close();
+  }
+
+  void _onRecordState(RecordState state) {
+    if (_states.isClosed) return;
+    _states.add(switch (state) {
+      RecordState.record => MicSourceState.recording,
+      RecordState.pause => MicSourceState.interrupted,
+      RecordState.stop => MicSourceState.stopped,
+    });
   }
 
   /// Redécoupe le flux d'octets PCM16 LE en frames de [frameSize] samples,

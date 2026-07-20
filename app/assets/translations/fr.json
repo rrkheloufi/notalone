@@ -70,17 +70,21 @@
     "sessionEnded": "L'hôte a terminé la conversation",
     "rescan": "Scanner à nouveau"
   },
-  "vadDebug": {
-    "title": "Debug VAD (MVP-02)",
-    "open": "Debug VAD (spike MVP-02)",
+  "capture": {
+    "title": "Mon micro",
+    "open": "Tester mon micro",
     "start": "Démarrer la capture",
     "stop": "Arrêter",
-    "level": "Niveau",
-    "probability": "Proba parole",
-    "speechActive": "parole détectée",
-    "segmentsTitle": "Segments détectés",
-    "noSegments": "Aucun segment pour l'instant",
-    "segmentLine": "départ {start} s · {duration} ms · {energy} dB",
+    "mute": "Couper le micro",
+    "unmute": "Rallumer le micro",
+    "statusIdle": "Micro arrêté",
+    "statusActive": "Micro actif",
+    "statusInterrupted": "Micro interrompu — reprise automatique",
+    "statusMuted": "Micro coupé",
+    "speaking": "parole",
+    "segmentsTitle": "Prises de parole captées",
+    "noSegments": "Aucune prise de parole pour l’instant",
+    "segmentLine": "{time} · {duration} ms · {energy} dB",
     "micPermissionError": "Accès micro refusé : autorise NotAlone dans les réglages système."
   }
 }

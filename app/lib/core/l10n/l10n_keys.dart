@@ -105,26 +105,33 @@ abstract final class L10nKeys {
 
   static const String joinRescan = 'join.rescan';
 
-  static const String vadDebugTitle = 'vadDebug.title';
+  static const String captureTitle = 'capture.title';
 
-  static const String vadDebugOpen = 'vadDebug.open';
+  static const String captureOpen = 'capture.open';
 
-  static const String vadDebugStart = 'vadDebug.start';
+  static const String captureStart = 'capture.start';
 
-  static const String vadDebugStop = 'vadDebug.stop';
+  static const String captureStop = 'capture.stop';
 
-  static const String vadDebugLevel = 'vadDebug.level';
+  static const String captureMute = 'capture.mute';
 
-  static const String vadDebugProbability = 'vadDebug.probability';
+  static const String captureUnmute = 'capture.unmute';
 
-  static const String vadDebugSpeechActive = 'vadDebug.speechActive';
+  static const String captureStatusIdle = 'capture.statusIdle';
 
-  static const String vadDebugSegmentsTitle = 'vadDebug.segmentsTitle';
+  static const String captureStatusActive = 'capture.statusActive';
 
-  static const String vadDebugNoSegments = 'vadDebug.noSegments';
+  static const String captureStatusInterrupted = 'capture.statusInterrupted';
 
-  static const String vadDebugSegmentLine = 'vadDebug.segmentLine';
+  static const String captureStatusMuted = 'capture.statusMuted';
 
-  static const String vadDebugMicPermissionError =
-      'vadDebug.micPermissionError';
+  static const String captureSpeaking = 'capture.speaking';
+
+  static const String captureSegmentsTitle = 'capture.segmentsTitle';
+
+  static const String captureNoSegments = 'capture.noSegments';
+
+  static const String captureSegmentLine = 'capture.segmentLine';
+
+  static const String captureMicPermissionError = 'capture.micPermissionError';
 }

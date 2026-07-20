@@ -49,7 +49,7 @@ Widget stub(String label) => Scaffold(
               opened.add('réglages');
               return stub('réglages');
             },
-        vadDebug: () => stub('vad'),
+        capture: () => stub('capture'),
       ),
     ),
     opened: opened,

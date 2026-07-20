@@ -20,3 +20,10 @@ final class VadInitializationFailure extends CaptureFailure {
 final class VadInferenceFailure extends CaptureFailure {
   const VadInferenceFailure(String details) : super('Inférence VAD : $details');
 }
+
+/// L'OS a refusé ce qui permet de capter écran verrouillé (foreground
+/// service Android). Sans cela la capture s'arrêterait au verrouillage.
+final class BackgroundCaptureFailure extends CaptureFailure {
+  const BackgroundCaptureFailure(String details)
+    : super('Capture en arrière-plan : $details');
+}

@@ -1,0 +1,226 @@
+import 'dart:async';
+
+import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
+import 'package:notalone/core/l10n/l10n_keys.dart';
+import 'package:notalone/core/result/failure.dart';
+import 'package:notalone/features/capture/domain/capture_failure.dart';
+import 'package:notalone/features/capture/domain/capture_status.dart';
+import 'package:notalone/features/capture/domain/speech_segment.dart';
+import 'package:notalone/features/capture/presentation/capture_viewmodel.dart';
+
+/// Écran de capture de l'invité : ce que son micro entend. Le transcript
+/// fusionné, lui, s'affiche chez l'hôte (MVP-12).
+class CaptureView extends StatefulWidget {
+  const CaptureView({required this.viewModel, super.key});
+
+  final CaptureViewModel viewModel;
+
+  @override
+  State<CaptureView> createState() => _CaptureViewState();
+}
+
+class _CaptureViewState extends State<CaptureView> {
+  @override
+  void dispose() {
+    widget.viewModel.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewModel = widget.viewModel;
+    return Scaffold(
+      appBar: AppBar(title: Text(L10nKeys.captureTitle.tr())),
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: Listenable.merge([
+            viewModel,
+            viewModel.startCommand,
+            viewModel.stopCommand,
+            viewModel.toggleMuteCommand,
+          ]),
+          builder: (context, _) {
+            final failure =
+                viewModel.startCommand.result?.failureOrNull ??
+                viewModel.streamFailure;
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (failure != null) _FailureBanner(failure: failure),
+                  _StatusRow(viewModel: viewModel),
+                  const SizedBox(height: 16),
+                  _Controls(viewModel: viewModel),
+                  const SizedBox(height: 16),
+                  Text(
+                    L10nKeys.captureSegmentsTitle.tr(),
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(child: _SegmentList(segments: viewModel.segments)),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _FailureBanner extends StatelessWidget {
+  const _FailureBanner({required this.failure});
+
+  final Failure failure;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final message = failure is MicPermissionFailure
+        ? L10nKeys.captureMicPermissionError.tr()
+        : failure.message;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(message, style: TextStyle(color: scheme.onErrorContainer)),
+    );
+  }
+}
+
+class _StatusRow extends StatelessWidget {
+  const _StatusRow({required this.viewModel});
+
+  final CaptureViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final (icon, label, color) = switch (viewModel.status) {
+      CaptureStatus.idle => (
+        Icons.mic_off,
+        L10nKeys.captureStatusIdle.tr(),
+        scheme.outline,
+      ),
+      CaptureStatus.active => (
+        Icons.mic,
+        L10nKeys.captureStatusActive.tr(),
+        scheme.primary,
+      ),
+      CaptureStatus.interrupted => (
+        Icons.phone_paused,
+        L10nKeys.captureStatusInterrupted.tr(),
+        scheme.error,
+      ),
+      CaptureStatus.muted => (
+        Icons.mic_off,
+        L10nKeys.captureStatusMuted.tr(),
+        scheme.outline,
+      ),
+    };
+    return Row(
+      children: [
+        Icon(icon, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(label, style: Theme.of(context).textTheme.titleMedium),
+        ),
+        if (viewModel.isSpeaking)
+          Chip(
+            avatar: Icon(Icons.graphic_eq, size: 18, color: scheme.primary),
+            label: Text(L10nKeys.captureSpeaking.tr()),
+          ),
+      ],
+    );
+  }
+}
+
+class _Controls extends StatelessWidget {
+  const _Controls({required this.viewModel});
+
+  final CaptureViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final busy =
+        viewModel.startCommand.running ||
+        viewModel.stopCommand.running ||
+        viewModel.toggleMuteCommand.running;
+    if (!viewModel.isCapturing) {
+      return FilledButton.icon(
+        onPressed: busy
+            ? null
+            : () => unawaited(viewModel.startCommand.execute()),
+        icon: const Icon(Icons.mic),
+        label: Text(L10nKeys.captureStart.tr()),
+      );
+    }
+    final muted = viewModel.status == CaptureStatus.muted;
+    return Row(
+      children: [
+        Expanded(
+          child: FilledButton.tonalIcon(
+            onPressed: busy
+                ? null
+                : () => unawaited(viewModel.toggleMuteCommand.execute()),
+            icon: Icon(muted ? Icons.mic : Icons.mic_off),
+            label: Text(
+              muted
+                  ? L10nKeys.captureUnmute.tr()
+                  : L10nKeys.captureMute.tr(),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: busy
+                ? null
+                : () => unawaited(viewModel.stopCommand.execute()),
+            icon: const Icon(Icons.stop),
+            label: Text(L10nKeys.captureStop.tr()),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SegmentList extends StatelessWidget {
+  const _SegmentList({required this.segments});
+
+  final List<SpeechSegment> segments;
+
+  @override
+  Widget build(BuildContext context) {
+    if (segments.isEmpty) {
+      return Center(child: Text(L10nKeys.captureNoSegments.tr()));
+    }
+    return ListView.builder(
+      itemCount: segments.length,
+      itemBuilder: (context, index) {
+        final segment = segments[index];
+        final at = DateTime.fromMillisecondsSinceEpoch(segment.tStartMs);
+        return ListTile(
+          dense: true,
+          leading: const Icon(Icons.graphic_eq),
+          title: Text(
+            L10nKeys.captureSegmentLine.tr(
+              namedArgs: {
+                'time': DateFormat.Hms().format(at),
+                'duration': '${segment.durationMs}',
+                'energy': segment.energyDbfs.toStringAsFixed(1),
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+}

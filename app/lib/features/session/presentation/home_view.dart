@@ -15,7 +15,7 @@ class HomeDestinations {
     required this.hostLobby,
     required this.join,
     required this.settings,
-    required this.vadDebug,
+    required this.capture,
   });
 
   final Widget Function(String name) hostLobby;
@@ -26,8 +26,8 @@ class HomeDestinations {
 
   final Widget Function() settings;
 
-  /// Accès au spike MVP-02, retiré avec lui en MVP-08.
-  final Widget Function() vadDebug;
+  /// Écran « mon micro » : l'invité vérifie que sa voix est bien captée.
+  final Widget Function() capture;
 }
 
 /// Accueil : « Nouvelle conversation » ou « Rejoindre », rien d'autre
@@ -130,8 +130,8 @@ class _HomeViewState extends State<HomeView> {
                   const SizedBox(height: 32),
                   OutlinedButton(
                     onPressed: () =>
-                        unawaited(_push(widget.destinations.vadDebug())),
-                    child: Text(L10nKeys.vadDebugOpen.tr()),
+                        unawaited(_push(widget.destinations.capture())),
+                    child: Text(L10nKeys.captureOpen.tr()),
                   ),
                 ],
               ),

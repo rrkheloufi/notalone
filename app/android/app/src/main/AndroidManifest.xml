@@ -4,6 +4,17 @@
     <!-- Sockets LAN hôte/invité (doc 02 §4) : requis aussi en release,
          le template Flutter ne l'accorde qu'en debug/profile. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Capture maintenue écran verrouillé (doc 02 §8) : sans foreground
+         service de type micro, Android retire le micro à l'app dès qu'elle
+         passe en arrière-plan. FOREGROUND_SERVICE_MICROPHONE est exigé à
+         partir d'Android 14, POST_NOTIFICATIONS à partir d'Android 13 pour
+         que la notification persistante du service soit visible. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Exemption d'optimisation batterie : demandée à l'utilisateur, jamais
+         imposée — la capture démarre même sans (doc 03 R5). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <application
         android:label="notalone"
         android:name="${applicationName}"
@@ -30,6 +41,13 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Service sans travail propre : il n'existe que pour donner à
+             l'app le statut « premier plan » aux yeux du système. La capture
+             continue de tourner dans l'isolate Dart principal. -->
+        <service
+            android:name=".CaptureForegroundService"
+            android:foregroundServiceType="microphone"
+            android:exported="false"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

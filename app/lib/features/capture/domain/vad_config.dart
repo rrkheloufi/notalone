@@ -12,6 +12,9 @@ class VadConfig {
     this.speechEndProbability = 0.35,
     this.minSpeechMs = 200,
     this.minSilenceMs = 600,
+    this.preRollMs = 200,
+    this.maxSegmentMs = 15000,
+    this.minSegmentEnergyDbfs = -45,
   });
 
   /// 16 kHz : fréquence d'entraînement de Silero VAD.
@@ -34,7 +37,30 @@ class VadConfig {
   /// plus courte reste dans le même segment.
   final int minSilenceMs;
 
+  /// Audio conservé **avant** le franchissement du seuil VAD et joint au
+  /// segment : le détecteur confirme la parole une fois la première syllabe
+  /// déjà commencée, sans ce rattrapage le STT (MVP-10) reçoit une attaque
+  /// rognée.
+  final int preRollMs;
+
+  /// Durée maximale d'un segment : au-delà, il est coupé et la parole
+  /// enchaîne sur un nouveau segment. Borne à la fois la latence perçue et
+  /// la mémoire du buffer audio (15 s ≈ 960 Ko en float 16 kHz).
+  final int maxSegmentMs;
+
+  /// Plancher de bruit : un segment moins énergique est abandonné sans être
+  /// transcrit. MVP-02 a mesuré la voix du porteur entre −39 dBFS (téléphone
+  /// à 1,5 m) et −14 dBFS (à 30 cm) : à −45 dBFS on ne rejette donc que ce
+  /// qui est plus faible qu'une voix à bout de table. Ce seuil n'arbitre
+  /// **pas** la proximité — c'est le métier de la déduplication (MVP-11).
+  /// À recalibrer sur données réelles en MVP-15.
+  final double minSegmentEnergyDbfs;
+
   int get minSpeechSamples => minSpeechMs * sampleRate ~/ 1000;
 
   int get minSilenceSamples => minSilenceMs * sampleRate ~/ 1000;
+
+  int get preRollSamples => preRollMs * sampleRate ~/ 1000;
+
+  int get maxSegmentSamples => maxSegmentMs * sampleRate ~/ 1000;
 }
