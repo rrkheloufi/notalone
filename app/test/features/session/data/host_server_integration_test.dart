@@ -7,6 +7,7 @@ import 'package:notalone/features/session/domain/host_server.dart';
 import 'package:notalone/features/session/domain/protocol/session_close_codes.dart';
 import 'package:notalone/features/session/domain/protocol/session_message.dart';
 import 'package:notalone/features/session/domain/protocol/session_message_codec.dart';
+import 'package:notalone/features/session/domain/protocol/session_wire.dart';
 import 'package:notalone/features/session/domain/session_config.dart';
 
 const _timeout = Duration(seconds: 5);
@@ -45,7 +46,7 @@ class _Guest {
   }
 
   static Future<_Guest> connect(int port) async => _Guest(
-    await WebSocket.connect('ws://127.0.0.1:$port${DartIoHostServer.path}'),
+    await WebSocket.connect('ws://127.0.0.1:$port${SessionWire.path}'),
   );
 
   final WebSocket socket;
@@ -66,8 +67,11 @@ class _Guest {
     if (message is Ping) send(Pong(seq: message.seq));
   });
 
-  Future<T> expect<T extends SessionMessage>() =>
-      messages.where((message) => message is T).cast<T>().first.timeout(
+  Future<T> expect<T extends SessionMessage>() => messages
+      .where((message) => message is T)
+      .cast<T>()
+      .first
+      .timeout(
         _timeout,
       );
 

@@ -32,6 +32,12 @@
 	<string>NotAlone utilise l'appareil photo uniquement pour scanner le QR code qui permet de rejoindre une conversation.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>NotAlone échange le texte de la conversation directement entre les téléphones du foyer, sans passer par internet.</string>
+	<!-- Services mDNS annoncés et recherchés (MVP-06, secours du QR).
+	     Depuis iOS 14, un service absent de cette liste est invisible. -->
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_notalone._tcp</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

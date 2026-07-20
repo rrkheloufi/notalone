@@ -1,4 +1,6 @@
+import 'package:meta/meta.dart';
 import 'package:notalone/core/result/failure.dart';
+import 'package:notalone/features/session/domain/protocol/session_close_codes.dart';
 
 sealed class SessionFailure extends Failure {
   const SessionFailure(super.message);
@@ -43,6 +45,48 @@ final class SessionFullFailure extends SessionFailure {
 /// précédente, ou tentative d'entrée non sollicitée.
 final class InvalidTokenFailure extends SessionFailure {
   const InvalidTokenFailure() : super('Code de session invalide');
+}
+
+/// Entrée refusée par l'hôte, qui exprime son refus par le code de fermeture
+/// WebSocket (cf. `SessionCloseCodes`) plutôt que par un message dédié. Le
+/// code est conservé pour que l'UI adapte son texte et décide s'il vaut la
+/// peine de retenter.
+@immutable
+final class JoinRefusedFailure extends SessionFailure {
+  JoinRefusedFailure(this.closeCode) : super(_messageFor(closeCode));
+
+  final int closeCode;
+
+  static String _messageFor(int closeCode) => switch (closeCode) {
+    SessionCloseCodes.invalidToken =>
+      'Ce QR code ne correspond plus à la session en cours',
+    SessionCloseCodes.sessionFull => 'La session est complète',
+    SessionCloseCodes.joinExpected => 'L hôte n a pas compris la demande',
+    SessionCloseCodes.sessionEnded => 'La session est terminée',
+    _ => 'Entrée refusée par l hôte (code $closeCode)',
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is JoinRefusedFailure && other.closeCode == closeCode);
+
+  @override
+  int get hashCode => Object.hash(JoinRefusedFailure, closeCode);
+}
+
+/// Enregistrement TXT d'une annonce mDNS inexploitable : version absente,
+/// token manquant, hôte non résolu.
+final class DiscoveryRecordMalformedFailure extends SessionFailure {
+  const DiscoveryRecordMalformedFailure(String details)
+    : super('Annonce de session invalide : $details');
+}
+
+/// Annonce ou découverte mDNS indisponible (permission réseau local refusée,
+/// service système absent). Jamais bloquant : le QR reste le chemin nominal.
+final class DiscoveryUnavailableFailure extends SessionFailure {
+  const DiscoveryUnavailableFailure(String details)
+    : super('Découverte réseau indisponible : $details');
 }
 
 /// Type absent de la table du codec : corruption ou message d'une version

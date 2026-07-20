@@ -10,6 +10,7 @@ import 'package:notalone/features/session/domain/participant_registry.dart';
 import 'package:notalone/features/session/domain/protocol/session_close_codes.dart';
 import 'package:notalone/features/session/domain/protocol/session_message.dart';
 import 'package:notalone/features/session/domain/protocol/session_message_codec.dart';
+import 'package:notalone/features/session/domain/protocol/session_wire.dart';
 import 'package:notalone/features/session/domain/session_config.dart';
 import 'package:notalone/features/session/domain/session_failure.dart';
 
@@ -26,8 +27,6 @@ class DartIoHostServer implements HostServer {
     ParticipantRegistry? registry,
   }) : _config = config,
        _registry = registry ?? ParticipantRegistry(config: config);
-
-  static const String path = '/ws';
 
   final SessionConfig _config;
   final ParticipantRegistry _registry;
@@ -111,7 +110,7 @@ class DartIoHostServer implements HostServer {
   }
 
   Future<void> _handleRequest(HttpRequest request) async {
-    if (request.uri.path != path ||
+    if (request.uri.path != SessionWire.path ||
         !WebSocketTransformer.isUpgradeRequest(request)) {
       request.response.statusCode = HttpStatus.forbidden;
       await request.response.close();
