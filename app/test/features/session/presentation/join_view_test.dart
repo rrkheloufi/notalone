@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:notalone/core/result/result.dart';
+import 'package:notalone/features/onboarding/presentation/permission_gate.dart';
+import 'package:notalone/features/onboarding/presentation/permission_gate_viewmodel.dart';
 import 'package:notalone/features/session/domain/discovered_session.dart';
 import 'package:notalone/features/session/domain/guest_client.dart';
 import 'package:notalone/features/session/domain/protocol/session_close_codes.dart';
@@ -102,6 +104,8 @@ QrScannerBuilder scannerBuilding(String raw) =>
 
 ({JoinView view, _FakeGuestClient client, _FakeBrowser browser}) buildView({
   String scanned = '',
+  bool showScanner = true,
+  PermissionGate? microphoneGate,
 }) {
   final client = _FakeGuestClient();
   final browser = _FakeBrowser();
@@ -115,6 +119,8 @@ QrScannerBuilder scannerBuilding(String raw) =>
       scannerBuilder: scannerBuilding(
         scanned.isEmpty ? validPayload.encode() : scanned,
       ),
+      showScanner: showScanner,
+      microphoneGate: microphoneGate,
     ),
     client: client,
     browser: browser,
@@ -248,6 +254,87 @@ void main() {
     await tester.tap(find.text('Scanner à nouveau'));
     await tester.pumpAndSettle();
     expect(find.text('scanner'), findsOneWidget);
+  });
+
+  testWidgets(
+    'caméra refusée → pas de scanner, la liste réseau prend le relais',
+    (
+      tester,
+    ) async {
+      final (:view, :client, :browser) = buildView(showScanner: false);
+      await pumpLocalized(tester, view);
+
+      expect(find.text('scanner'), findsNothing);
+      expect(
+        find.textContaining("Sans l'appareil photo, choisis ta conversation"),
+        findsOneWidget,
+      );
+
+      browser.publish([discovered]);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Repas de Rayan'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Rejoindre'));
+      await tester.pumpAndSettle();
+
+      expect(
+        client.joinedName,
+        'Invité',
+        reason: 'le parcours reste possible sans jamais accorder la caméra',
+      );
+    },
+  );
+
+  testWidgets('le micro est demandé à la confirmation du prénom', (
+    tester,
+  ) async {
+    var asked = 0;
+    final (:view, :client, browser: _) = buildView(
+      microphoneGate: (context) async {
+        asked++;
+        return PermissionOutcome.granted;
+      },
+    );
+    await pumpLocalized(tester, view);
+
+    await tester.tap(find.text('scanner'));
+    await tester.pumpAndSettle();
+    expect(asked, 0, reason: 'rien n’est demandé au seul scan');
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Rejoindre'));
+    await tester.pumpAndSettle();
+
+    expect(asked, 1);
+    expect(client.joinedName, 'Invité');
+  });
+
+  testWidgets('micro refusé → l’invité entre quand même, muet', (tester) async {
+    final (:view, :client, browser: _) = buildView(
+      microphoneGate: (context) async => PermissionOutcome.skipped,
+    );
+    await pumpLocalized(tester, view);
+
+    await tester.tap(find.text('scanner'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Rejoindre'));
+    await tester.pumpAndSettle();
+
+    expect(client.joinedName, 'Invité');
+  });
+
+  testWidgets('porte micro annulée → aucune connexion', (tester) async {
+    final (:view, :client, browser: _) = buildView(
+      microphoneGate: (context) async => PermissionOutcome.cancelled,
+    );
+    await pumpLocalized(tester, view);
+
+    await tester.tap(find.text('scanner'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Rejoindre'));
+    await tester.pumpAndSettle();
+
+    expect(client.joinedName, isNull);
+    expect(find.text('Ton prénom'), findsOneWidget);
   });
 
   testWidgets('connexion perdue → motif affiché et rescan possible', (

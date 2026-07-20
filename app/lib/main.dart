@@ -7,13 +7,13 @@ import 'package:notalone/core/l10n/app_locales.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
-  const dependencies = AppDependencies();
+  final dependencies = AppDependencies();
   runApp(
     EasyLocalization(
       supportedLocales: AppLocales.supported,
       path: AppLocales.translationsPath,
       fallbackLocale: AppLocales.fallback,
-      child: const NotAloneApp(dependencies: dependencies),
+      child: NotAloneApp(dependencies: dependencies),
     ),
   );
 }

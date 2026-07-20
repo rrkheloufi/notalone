@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:notalone/core/l10n/l10n_keys.dart';
 import 'package:notalone/core/theme/speaker_colors.dart';
+import 'package:notalone/features/onboarding/presentation/permission_gate.dart';
+import 'package:notalone/features/onboarding/presentation/permission_gate_viewmodel.dart';
 import 'package:notalone/features/session/domain/discovered_session.dart';
 import 'package:notalone/features/session/domain/session_failure.dart';
 import 'package:notalone/features/session/presentation/join_viewmodel.dart';
@@ -22,11 +24,23 @@ class JoinView extends StatefulWidget {
   const JoinView({
     required this.viewModel,
     this.scannerBuilder = _buildMobileScanner,
+    this.showScanner = true,
+    this.microphoneGate,
     super.key,
   });
 
   final JoinViewModel viewModel;
   final QrScannerBuilder scannerBuilder;
+
+  /// Faux quand la caméra a été refusée : l'écran se rabat sur les sessions
+  /// annoncées en mDNS, seul chemin qui reste pour entrer (décision Rayan,
+  /// MVP-07).
+  final bool showScanner;
+
+  /// Demande du micro juste avant la connexion, au moment où l'invité confirme
+  /// son prénom (doc 01 §3). Nulle en test, ou quand l'appelant l'a déjà
+  /// obtenue.
+  final PermissionGate? microphoneGate;
 
   static Widget _buildMobileScanner(
     BuildContext context,
@@ -67,6 +81,18 @@ class _JoinViewState extends State<JoinView> {
     unawaited(widget.viewModel.scanCommand.execute(raw));
   }
 
+  /// Le micro se demande ici et pas plus tôt : c'est le moment où l'invité
+  /// s'engage dans la conversation. Un refus ne bloque pas — il entre quand
+  /// même, muet (décision Rayan, MVP-07).
+  Future<void> _confirmName(String name) async {
+    final gate = widget.microphoneGate;
+    if (gate != null) {
+      final outcome = await gate(context);
+      if (outcome == PermissionOutcome.cancelled || !mounted) return;
+    }
+    await widget.viewModel.joinCommand.execute(name);
+  }
+
   @override
   Widget build(BuildContext context) {
     final viewModel = widget.viewModel;
@@ -81,11 +107,14 @@ class _JoinViewState extends State<JoinView> {
         builder: (context, _) => switch (viewModel.step) {
           JoinStep.scanning => _Scanning(
             viewModel: viewModel,
-            scanner: widget.scannerBuilder(context, _onScanned),
+            scanner: widget.showScanner
+                ? widget.scannerBuilder(context, _onScanned)
+                : null,
           ),
           JoinStep.confirmingName || JoinStep.connecting => _ConfirmName(
             viewModel: viewModel,
             controller: _nameController,
+            onConfirm: _confirmName,
           ),
           JoinStep.connected => _Connected(viewModel: viewModel),
           JoinStep.reconnecting => _Reconnecting(viewModel: viewModel),
@@ -111,19 +140,26 @@ class _Scanning extends StatelessWidget {
   const _Scanning({required this.viewModel, required this.scanner});
 
   final JoinViewModel viewModel;
-  final Widget scanner;
+
+  /// Nul quand la caméra a été refusée : seule la liste mDNS reste.
+  final Widget? scanner;
 
   @override
   Widget build(BuildContext context) {
     final failure = viewModel.scanCommand.result?.failureOrNull;
     final message = switch (failure) {
+      null when scanner == null => L10nKeys.joinNoCameraHint.tr(),
       null => L10nKeys.joinScanHint.tr(),
       ConnectionTimeoutFailure() => L10nKeys.joinTimeoutHint.tr(),
       _ => failure.message,
     };
     return Column(
       children: [
-        Expanded(child: scanner),
+        Expanded(
+          child:
+              scanner ??
+              const Center(child: Icon(Icons.wifi_find, size: 64)),
+        ),
         Material(
           color: Theme.of(context).colorScheme.surface,
           child: Padding(
@@ -167,10 +203,15 @@ class _DiscoveredTile extends StatelessWidget {
 }
 
 class _ConfirmName extends StatelessWidget {
-  const _ConfirmName({required this.viewModel, required this.controller});
+  const _ConfirmName({
+    required this.viewModel,
+    required this.controller,
+    required this.onConfirm,
+  });
 
   final JoinViewModel viewModel;
   final TextEditingController controller;
+  final ValueChanged<String> onConfirm;
 
   @override
   Widget build(BuildContext context) {
@@ -199,8 +240,7 @@ class _ConfirmName extends StatelessWidget {
             decoration: InputDecoration(
               labelText: L10nKeys.joinNameLabel.tr(),
             ),
-            onSubmitted: (value) =>
-                unawaited(viewModel.joinCommand.execute(value)),
+            onSubmitted: onConfirm,
           ),
           if (failure != null) ...[
             const SizedBox(height: 12),
@@ -212,11 +252,7 @@ class _ConfirmName extends StatelessWidget {
           ],
           const SizedBox(height: 24),
           FilledButton(
-            onPressed: connecting
-                ? null
-                : () => unawaited(
-                    viewModel.joinCommand.execute(controller.text),
-                  ),
+            onPressed: connecting ? null : () => onConfirm(controller.text),
             child: Text(
               connecting
                   ? L10nKeys.joinConnecting.tr()

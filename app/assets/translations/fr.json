@@ -5,10 +5,41 @@
   "common": {
     "retry": "Réessayer"
   },
+  "onboarding": {
+    "title": "Comment t'appelles-tu ?",
+    "explanation": "Ton prénom s'affiche à côté de ce que tu dis, pour que le lecteur sache qui parle. Il reste sur ton téléphone.",
+    "nameLabel": "Ton prénom",
+    "continue": "Continuer",
+    "saveError": "Ton prénom n'a pas pu être enregistré. Réessaie."
+  },
   "home": {
-    "placeholder": "Bienvenue dans NotAlone",
+    "greeting": "Bonjour {name}",
     "newConversation": "Nouvelle conversation",
-    "join": "Rejoindre"
+    "join": "Rejoindre",
+    "settings": "Réglages"
+  },
+  "permission": {
+    "allow": "Autoriser",
+    "openSettings": "Ouvrir les réglages",
+    "microphone": {
+      "title": "NotAlone a besoin du micro",
+      "message": "Ton téléphone capte ta voix pour l'écrire chez le lecteur. L'audio ne quitte jamais ton téléphone : seul le texte est transmis.",
+      "refused": "Sans le micro, ce que tu dis ne sera pas transcrit. Tu peux quand même suivre la conversation.",
+      "skip": "Continuer sans mon micro"
+    },
+    "camera": {
+      "title": "NotAlone a besoin de l'appareil photo",
+      "message": "Uniquement pour scanner le QR code de la conversation. Aucune photo n'est prise ni enregistrée.",
+      "refused": "Sans l'appareil photo, tu ne peux pas scanner le QR code.",
+      "skip": "Chercher sur le réseau"
+    }
+  },
+  "settings": {
+    "title": "Réglages",
+    "nameLabel": "Ton prénom",
+    "save": "Enregistrer",
+    "saved": "Prénom enregistré",
+    "saveError": "Ton prénom n'a pas pu être enregistré. Réessaie."
   },
   "hostLobby": {
     "title": "Nouvelle conversation",
@@ -24,6 +55,7 @@
   "join": {
     "title": "Rejoindre",
     "scanHint": "Scanne le QR code affiché sur le téléphone de l'hôte",
+    "noCameraHint": "Sans l'appareil photo, choisis ta conversation dans la liste. Elle apparaît si l'hôte est sur le même WiFi.",
     "timeoutHint": "Connexion impossible : le WiFi isole peut-être les appareils entre eux. Active le partage de connexion du téléphone hôte, reconnecte les deux téléphones dessus, et rescanne.",
     "discoveredTitle": "Conversations trouvées sur le réseau",
     "sessionFound": "{session}",

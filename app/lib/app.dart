@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:notalone/app_dependencies.dart';
 import 'package:notalone/core/l10n/l10n_keys.dart';
 import 'package:notalone/core/theme/app_theme.dart';
-import 'package:notalone/features/capture/presentation/vad_debug_view.dart';
-import 'package:notalone/features/session/presentation/host_lobby_view.dart';
-import 'package:notalone/features/session/presentation/join_view.dart';
+import 'package:notalone/features/onboarding/presentation/app_root_viewmodel.dart';
+import 'package:notalone/features/onboarding/presentation/onboarding_view.dart';
+import 'package:notalone/features/onboarding/presentation/onboarding_viewmodel.dart';
+import 'package:notalone/features/session/presentation/home_view.dart';
+import 'package:notalone/features/session/presentation/home_viewmodel.dart';
 
 class NotAloneApp extends StatelessWidget {
   const NotAloneApp({required this.dependencies, super.key});
@@ -23,96 +25,69 @@ class NotAloneApp extends StatelessWidget {
       locale: context.locale,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      home: _PlaceholderHomeView(dependencies: dependencies),
+      home: _AppRoot(dependencies: dependencies),
     );
   }
 }
 
-// Écran provisoire : la vraie home (prénom, permissions) arrive en MVP-07.
-// Les deux boutons sont déjà ceux du doc 01 §3.
-class _PlaceholderHomeView extends StatelessWidget {
-  const _PlaceholderHomeView({required this.dependencies});
+/// Aiguillage du démarrage : onboarding au premier lancement, home dès que le
+/// prénom est connu (cf. cowork/01-cadrage-produit.md §3).
+class _AppRoot extends StatefulWidget {
+  const _AppRoot({required this.dependencies});
 
   final AppDependencies dependencies;
 
-  void _openHostLobby(BuildContext context) {
-    const name = AppDependencies.provisionalName;
-    unawaited(
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => HostLobbyView(
-            viewModel: dependencies.createHostLobbyViewModel(
-              hostName: name,
-              sessionName: L10nKeys.hostLobbySessionName.tr(
-                namedArgs: {'name': name},
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+  @override
+  State<_AppRoot> createState() => _AppRootState();
+}
+
+class _AppRootState extends State<_AppRoot> {
+  late final AppRootViewModel _viewModel = widget.dependencies
+      .createAppRootViewModel();
+
+  // Mémorisés : `build` peut se rejouer souvent, et ces ViewModels portent
+  // l'état de leur écran (leur vue s'en occupe jusqu'au `dispose`).
+  OnboardingViewModel? _onboardingViewModel;
+  HomeViewModel? _homeViewModel;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_viewModel.loadCommand.execute());
   }
 
-  void _openJoin(BuildContext context) {
-    unawaited(
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => JoinView(
-            viewModel: dependencies.createJoinViewModel(
-              initialName: AppDependencies.provisionalName,
-            ),
-          ),
-        ),
-      ),
-    );
+  @override
+  void dispose() {
+    _viewModel.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  L10nKeys.homePlaceholder.tr(),
-                  style: Theme.of(context).textTheme.headlineLarge,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
-                FilledButton.icon(
-                  onPressed: () => _openHostLobby(context),
-                  icon: const Icon(Icons.qr_code_2),
-                  label: Text(L10nKeys.homeNewConversation.tr()),
-                ),
-                const SizedBox(height: 12),
-                FilledButton.tonalIcon(
-                  onPressed: () => _openJoin(context),
-                  icon: const Icon(Icons.qr_code_scanner),
-                  label: Text(L10nKeys.homeJoin.tr()),
-                ),
-                const SizedBox(height: 32),
-                // Accès au spike MVP-02, retiré avec lui en MVP-08.
-                OutlinedButton(
-                  onPressed: () => unawaited(
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => VadDebugView(
-                          viewModel: dependencies.createVadDebugViewModel(),
-                        ),
-                      ),
-                    ),
-                  ),
-                  child: Text(L10nKeys.vadDebugOpen.tr()),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return ListenableBuilder(
+      listenable: _viewModel,
+      builder: (context, _) {
+        if (!_viewModel.isLoaded) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final name = _viewModel.name;
+        if (name == null) {
+          return OnboardingView(
+            viewModel: _onboardingViewModel ??= widget.dependencies
+                .createOnboardingViewModel(),
+            onCompleted: () => unawaited(_viewModel.loadCommand.execute()),
+          );
+        }
+        return HomeView(
+          viewModel: _homeViewModel ??= widget.dependencies
+              .createHomeViewModel(name: name),
+          destinations: widget.dependencies.homeDestinations,
+          microphoneGate: widget.dependencies.microphoneGate,
+          cameraGate: widget.dependencies.cameraGate,
+        );
+      },
     );
   }
 }

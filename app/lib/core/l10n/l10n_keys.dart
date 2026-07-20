@@ -5,11 +5,55 @@ abstract final class L10nKeys {
 
   static const String commonRetry = 'common.retry';
 
-  static const String homePlaceholder = 'home.placeholder';
+  static const String onboardingTitle = 'onboarding.title';
+
+  static const String onboardingExplanation = 'onboarding.explanation';
+
+  static const String onboardingNameLabel = 'onboarding.nameLabel';
+
+  static const String onboardingContinue = 'onboarding.continue';
+
+  static const String onboardingSaveError = 'onboarding.saveError';
+
+  static const String homeGreeting = 'home.greeting';
 
   static const String homeNewConversation = 'home.newConversation';
 
   static const String homeJoin = 'home.join';
+
+  static const String homeSettings = 'home.settings';
+
+  static const String permissionAllow = 'permission.allow';
+
+  static const String permissionOpenSettings = 'permission.openSettings';
+
+  static const String permissionMicrophoneTitle = 'permission.microphone.title';
+
+  static const String permissionMicrophoneMessage =
+      'permission.microphone.message';
+
+  static const String permissionMicrophoneRefused =
+      'permission.microphone.refused';
+
+  static const String permissionMicrophoneSkip = 'permission.microphone.skip';
+
+  static const String permissionCameraTitle = 'permission.camera.title';
+
+  static const String permissionCameraMessage = 'permission.camera.message';
+
+  static const String permissionCameraRefused = 'permission.camera.refused';
+
+  static const String permissionCameraSkip = 'permission.camera.skip';
+
+  static const String settingsTitle = 'settings.title';
+
+  static const String settingsNameLabel = 'settings.nameLabel';
+
+  static const String settingsSave = 'settings.save';
+
+  static const String settingsSaved = 'settings.saved';
+
+  static const String settingsSaveError = 'settings.saveError';
 
   static const String hostLobbyTitle = 'hostLobby.title';
 
@@ -32,6 +76,8 @@ abstract final class L10nKeys {
   static const String joinTitle = 'join.title';
 
   static const String joinScanHint = 'join.scanHint';
+
+  static const String joinNoCameraHint = 'join.noCameraHint';
 
   static const String joinTimeoutHint = 'join.timeoutHint';
 

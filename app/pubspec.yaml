@@ -14,14 +14,15 @@ dependencies:
   flutter_onnxruntime: ^1.8.2
   meta: ^1.18.0
   mobile_scanner: ^7.3.0
+  permission_handler: ^12.0.3
   pretty_qr_code: ^3.6.0
   record: ^7.1.1
+  shared_preferences: ^2.5.5
   web_socket_channel: ^3.0.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  shared_preferences: ^2.5.5
   very_good_analysis: ^10.3.0
 
 flutter:

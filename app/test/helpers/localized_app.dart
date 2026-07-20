@@ -37,6 +37,10 @@ Future<void> initLocalization() async {
   await EasyLocalization.ensureInitialized();
 }
 
+/// Le même chargeur, pour les tests qui montent l'app entière (et donc leur
+/// propre `EasyLocalization`) au lieu d'un écran isolé.
+AssetLoader get frenchLoader => _loader;
+
 /// Gabarit de téléphone plutôt que les 800×600 par défaut de flutter_test :
 /// nos écrans sont faits pour un mobile tenu à la verticale, et une fenêtre
 /// plus large les rendrait dans une disposition que personne ne verra.
