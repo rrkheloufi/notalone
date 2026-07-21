@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:notalone/features/capture/domain/capture_failure.dart';
 import 'package:notalone/features/capture/domain/capture_speech_use_case.dart';
 import 'package:notalone/features/capture/domain/capture_status.dart';
+import 'package:notalone/features/capture/domain/mic_status_reporter.dart';
 import 'package:notalone/features/capture/domain/segment_publisher.dart';
 import 'package:notalone/features/capture/domain/stt_failure.dart';
 import 'package:notalone/features/capture/domain/transcribe_segments_use_case.dart';
@@ -302,6 +303,74 @@ void main() {
       expect(ownPublisher.disposed, isTrue);
     });
   });
+
+  group('supervision et fin de session (MVP-13)', () {
+    test('chaque changement d’état part vers l’hôte', () async {
+      final reporter = _RecordingMicStatus();
+      final supervised = CaptureViewModel(
+        capture: capture,
+        transcribe: TranscribeSegmentsUseCase(engine: stt),
+        micStatus: reporter,
+      );
+      addTearDown(supervised.dispose);
+
+      await supervised.startCommand.execute();
+      await supervised.toggleMuteCommand.execute();
+      await supervised.stopCommand.execute();
+      await pumpEventQueue();
+
+      // Poussé à chaque transition : c'est ce qui rend une coupure de micro
+      // visible chez l'hôte en moins de 10 s.
+      expect(reporter.reported, [
+        CaptureStatus.active,
+        CaptureStatus.muted,
+        CaptureStatus.idle,
+      ]);
+    });
+
+    test('fin de session : le micro s’arrête et rien n’est gardé', () async {
+      await viewModel.startCommand.execute();
+      await speak();
+      await FakeMicAudioSource.pump();
+      expect(viewModel.segments, isNotEmpty);
+      final segmentId = viewModel.segments.first.segmentId;
+
+      await viewModel.endSession();
+
+      // Aucune trace sur aucun appareil (critère MVP-13, CLAUDE.md règle 5).
+      expect(viewModel.segments, isEmpty);
+      expect(viewModel.transcriptionOf(segmentId), isNull);
+      expect(viewModel.status, CaptureStatus.idle);
+      expect(viewModel.isCapturing, isFalse);
+    });
+
+    test('dispose libère aussi le rapporteur', () {
+      final reporter = _RecordingMicStatus();
+      CaptureViewModel(
+        capture: CaptureSpeechUseCase(
+          mic: FakeMicAudioSource(),
+          vad: FakeVadService(),
+          guard: FakeBackgroundCaptureGuard(),
+        ),
+        transcribe: TranscribeSegmentsUseCase(engine: FakeSttEngine()),
+        micStatus: reporter,
+      ).dispose();
+
+      expect(reporter.isDisposed, isTrue);
+    });
+  });
+}
+
+/// L'état du micro tel que l'hôte le recevrait, retenu au lieu d'être envoyé.
+class _RecordingMicStatus implements MicStatusReporter {
+  final List<CaptureStatus> reported = [];
+  bool isDisposed = false;
+
+  @override
+  void report(CaptureStatus status) => reported.add(status);
+
+  @override
+  Future<void> dispose() async => isDisposed = true;
 }
 
 /// Ce que l'invité met sur le fil, retenu au lieu d'être envoyé.

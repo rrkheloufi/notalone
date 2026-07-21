@@ -1,10 +1,12 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:notalone/core/l10n/l10n_keys.dart';
 import 'package:notalone/features/capture/data/background_capture_guard_factory.dart';
+import 'package:notalone/features/capture/data/battery_plus_level_source.dart';
 import 'package:notalone/features/capture/data/record_mic_datasource.dart';
 import 'package:notalone/features/capture/data/silero_vad_service.dart';
 import 'package:notalone/features/capture/data/stt_engine_factory.dart';
 import 'package:notalone/features/capture/domain/capture_speech_use_case.dart';
+import 'package:notalone/features/capture/domain/mic_status_reporter.dart';
 import 'package:notalone/features/capture/domain/segment_publisher.dart';
 import 'package:notalone/features/capture/domain/transcribe_segments_use_case.dart';
 import 'package:notalone/features/capture/domain/vad_config.dart';
@@ -19,8 +21,11 @@ import 'package:notalone/features/onboarding/presentation/onboarding_viewmodel.d
 import 'package:notalone/features/onboarding/presentation/permission_gate.dart';
 import 'package:notalone/features/session/data/bonsoir_session_discovery.dart';
 import 'package:notalone/features/session/data/dart_io_host_server.dart';
+import 'package:notalone/features/session/data/periodic_mic_status_reporter.dart';
 import 'package:notalone/features/session/data/web_socket_guest_client.dart';
 import 'package:notalone/features/session/domain/guest_client.dart';
+import 'package:notalone/features/session/domain/protocol/session_message.dart';
+import 'package:notalone/features/session/domain/supervise_participants_use_case.dart';
 import 'package:notalone/features/session/presentation/home_view.dart';
 import 'package:notalone/features/session/presentation/home_viewmodel.dart';
 import 'package:notalone/features/session/presentation/host_lobby_view.dart';
@@ -30,6 +35,7 @@ import 'package:notalone/features/session/presentation/join_viewmodel.dart';
 import 'package:notalone/features/settings/presentation/settings_view.dart';
 import 'package:notalone/features/settings/presentation/settings_viewmodel.dart';
 import 'package:notalone/features/transcript/data/guest_segment_publisher.dart';
+import 'package:notalone/features/transcript/data/host_segment_publisher.dart';
 import 'package:notalone/features/transcript/data/host_speaker_directory.dart';
 import 'package:notalone/features/transcript/data/host_transcript_binder.dart';
 import 'package:notalone/features/transcript/data/shared_preferences_transcript_preferences.dart';
@@ -71,8 +77,12 @@ final class AppDependencies {
   HomeViewModel createHomeViewModel({required String name}) =>
       HomeViewModel(profiles: _profiles, name: name);
 
-  SettingsViewModel createSettingsViewModel() =>
-      SettingsViewModel(profiles: _profiles);
+  SettingsViewModel createSettingsViewModel() => SettingsViewModel(
+    profiles: _profiles,
+    // Le même repository que le fil : régler la taille ici ou en lisant écrit
+    // la même préférence (MVP-12 l'avait prévu).
+    preferences: _transcriptPreferences,
+  );
 
   late final HomeDestinations homeDestinations = HomeDestinations(
     hostLobby: (name) => HostLobbyView(
@@ -91,11 +101,10 @@ final class AppDependencies {
         viewModel: createJoinViewModel(client: client, initialName: name),
         showScanner: withScanner,
         microphoneGate: microphoneGate,
-        captureBuilder: () => CaptureView(
-          viewModel: createCaptureViewModel(
-            publisher: GuestSegmentPublisher(client: client),
-          ),
-        ),
+        // La capture appartient au ViewModel, pas à l'écran : celui-ci se
+        // contente de la montrer (MVP-13).
+        captureBuilder: (capture) =>
+            CaptureView(viewModel: capture, ownsViewModel: false),
       );
     },
     settings: () => SettingsView(viewModel: createSettingsViewModel()),
@@ -103,11 +112,16 @@ final class AppDependencies {
   );
 
   /// [publisher] nul : écran « mon micro » ouvert depuis l'accueil, hors
-  /// session — on capte et on transcrit, on n'envoie rien.
-  CaptureViewModel createCaptureViewModel({SegmentPublisher? publisher}) {
+  /// session — on capte et on transcrit, on n'envoie rien, et personne ne
+  /// supervise ce micro ([micStatus] nul pour la même raison).
+  CaptureViewModel createCaptureViewModel({
+    SegmentPublisher? publisher,
+    MicStatusReporter? micStatus,
+  }) {
     const config = VadConfig();
     return CaptureViewModel(
       publisher: publisher,
+      micStatus: micStatus,
       capture: CaptureSpeechUseCase(
         mic: RecordMicDatasource(),
         vad: SileroVadService(config: config),
@@ -125,14 +139,15 @@ final class AppDependencies {
     required String sessionName,
   }) {
     final server = DartIoHostServer();
-    // Branchés avant que la session démarre : tous deux s'abonnent au flux
+    // Branchés avant que la session démarre : tous trois s'abonnent au flux
     // d'événements du serveur, ils ne doivent manquer aucune admission — ce
-    // sont elles qui déclenchent la synchronisation d'horloge et qui donnent
-    // aux bulles leur prénom.
+    // sont elles qui déclenchent la synchronisation d'horloge, qui donnent
+    // aux bulles leur prénom, et qui peuplent le panneau de supervision.
     final binder = HostTranscriptBinder(
       server: server,
       merge: MergeTranscriptsUseCase(),
     );
+    final supervision = SuperviseParticipantsUseCase(server: server);
     // Construit ici et non à l'ouverture de l'écran : `entries` est un flux
     // diffusé sans rejeu, une phrase dite pendant que l'hôte montre encore le
     // QR serait perdue.
@@ -145,9 +160,28 @@ final class AppDependencies {
     return HostLobbyViewModel(
       server: server,
       advertiser: BonsoirSessionAdvertiser(),
+      supervision: supervision,
       hostName: hostName,
       sessionName: sessionName,
       transcript: transcript,
+      // L'hôte capte sa propre voix (doc 02 §1) mais n'a pas de socket vers
+      // lui-même : ses segments entrent directement dans la fusion et son état
+      // de micro directement dans la supervision. C'est la seule différence
+      // avec un invité, et elle tient dans ces deux lignes.
+      createHostCapture: (participantId) => createCaptureViewModel(
+        publisher: HostSegmentPublisher(
+          merge: binder.merge,
+          participantId: participantId,
+        ),
+        micStatus: PeriodicMicStatusReporter(
+          battery: const BatteryPlusLevelSource(),
+          publish: (state, batteryPct) => supervision.reportLocal(
+            participantId: participantId,
+            state: state,
+            batteryPct: batteryPct,
+          ),
+        ),
+      ),
     );
   }
 
@@ -158,5 +192,13 @@ final class AppDependencies {
     client: client,
     browser: BonsoirSessionBrowser(),
     initialName: initialName,
+    createCapture: () => createCaptureViewModel(
+      publisher: GuestSegmentPublisher(client: client),
+      micStatus: PeriodicMicStatusReporter(
+        battery: const BatteryPlusLevelSource(),
+        publish: (state, batteryPct) =>
+            client.send(MicStatus(state: state, batteryPct: batteryPct)),
+      ),
+    ),
   );
 }

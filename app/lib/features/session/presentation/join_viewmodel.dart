@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:notalone/core/command/command.dart';
 import 'package:notalone/core/result/result.dart';
+import 'package:notalone/features/capture/presentation/capture_viewmodel.dart';
 import 'package:notalone/features/session/domain/discovered_session.dart';
 import 'package:notalone/features/session/domain/guest_client.dart';
 import 'package:notalone/features/session/domain/qr_session_payload.dart';
@@ -23,11 +24,20 @@ enum JoinStep {
 
 /// Parcours d'entrée en session côté invité : scan du QR (ou choix d'une
 /// session découverte en mDNS), confirmation du prénom, connexion.
+///
+/// **Il possède la capture de l'invité**, comme le salon possède le fil chez
+/// l'hôte (MVP-12). Elle était jusqu'ici née et morte avec l'écran « mon
+/// micro » : refermer cet écran arrêtait tout, alors que le doc 01 §3 promet
+/// « je pose mon téléphone » et « l'invité peut verrouiller son écran, la
+/// capture continue ». Elle vit désormais aussi longtemps que la session — ce
+/// qui est aussi la condition pour que le `mic_status` reçu par l'hôte veuille
+/// dire quelque chose (MVP-13).
 class JoinViewModel extends ChangeNotifier {
   JoinViewModel({
     required this._client,
     required this._browser,
     required String initialName,
+    this._createCapture,
   }) : _name = initialName {
     _eventsSubscription = _client.events.listen(_handleEvent);
     _sessionsSubscription = _browser.sessions.listen(_handleDiscovered);
@@ -35,6 +45,14 @@ class JoinViewModel extends ChangeNotifier {
 
   final GuestClient _client;
   final SessionBrowser _browser;
+
+  /// Nulle en test : la capture demande micro, VAD et moteur STT.
+  final CaptureViewModel Function()? _createCapture;
+
+  /// La capture de cette session, créée à l'entrée et arrêtée à la sortie.
+  /// Nulle tant que l'invité n'est pas connecté.
+  CaptureViewModel? _capture;
+  CaptureViewModel? get capture => _capture;
 
   late final Command1<void, String> scanCommand = Command1(_scan);
   late final Command1<void, DiscoveredSession> pickCommand = Command1(_pick);
@@ -77,6 +95,7 @@ class JoinViewModel extends ChangeNotifier {
   /// sur décision de l'invité.
   Future<void> backToScanning() async {
     await _client.leave();
+    await _releaseCapture();
     _pendingSession = null;
     _reconnectAttempt = 0;
     _lostReason = null;
@@ -131,9 +150,34 @@ class JoinViewModel extends ChangeNotifier {
       case Ok():
         _step = JoinStep.connected;
         _reconnectAttempt = 0;
+        _startCapture();
         notifyListeners();
         return const Result.ok(null);
     }
+  }
+
+  /// La capture démarre dès l'entrée en session, sans attendre que l'invité
+  /// ouvre l'écran « mon micro » : il est censé poser son téléphone (doc 01
+  /// §3), pas surveiller un moniteur. C'est aussi ce qui fait partir le premier
+  /// `mic_status` vers l'hôte.
+  void _startCapture() {
+    if (_capture != null) return;
+    final capture = _createCapture?.call();
+    if (capture == null) return;
+    _capture = capture;
+    capture.addListener(notifyListeners);
+    unawaited(capture.startCommand.execute());
+  }
+
+  Future<void> _releaseCapture() async {
+    final capture = _capture;
+    if (capture == null) return;
+    capture.removeListener(notifyListeners);
+    _capture = null;
+    // Arrêt **et** effacement : la session finie, ce téléphone ne doit plus
+    // rien garder de ce qu'il a entendu (critère MVP-13).
+    await capture.endSession();
+    capture.dispose();
   }
 
   void _handleEvent(GuestClientEvent event) {
@@ -147,8 +191,13 @@ class JoinViewModel extends ChangeNotifier {
       case GuestConnectionLost(:final failure):
         _lostReason = failure.message;
         _step = JoinStep.lost;
+        unawaited(_releaseCapture());
       case GuestSessionEnded():
         _step = JoinStep.ended;
+        // `session_end` reçu : l'hôte a clos la conversation, chaque client
+        // efface tout (doc 02 §4). Ce téléphone n'attend pas que l'invité
+        // revienne au scan pour le faire.
+        unawaited(_releaseCapture());
       case GuestMessageReceived():
         // Les messages de l'hôte concernent l'horloge (MVP-09) et le
         // transcript (MVP-11), pas cet écran.
@@ -164,6 +213,7 @@ class JoinViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    unawaited(_releaseCapture());
     unawaited(_eventsSubscription?.cancel());
     unawaited(_sessionsSubscription?.cancel());
     unawaited(_browser.dispose());

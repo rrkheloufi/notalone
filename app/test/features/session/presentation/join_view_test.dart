@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:notalone/core/result/result.dart';
+import 'package:notalone/features/capture/domain/capture_speech_use_case.dart';
+import 'package:notalone/features/capture/domain/transcribe_segments_use_case.dart';
+import 'package:notalone/features/capture/presentation/capture_viewmodel.dart';
 import 'package:notalone/features/onboarding/presentation/permission_gate.dart';
 import 'package:notalone/features/onboarding/presentation/permission_gate_viewmodel.dart';
 import 'package:notalone/features/session/domain/discovered_session.dart';
@@ -15,7 +18,20 @@ import 'package:notalone/features/session/domain/session_failure.dart';
 import 'package:notalone/features/session/presentation/join_view.dart';
 import 'package:notalone/features/session/presentation/join_viewmodel.dart';
 
+import '../../../helpers/fake_capture_sources.dart';
+import '../../../helpers/fake_stt_engine.dart';
 import '../../../helpers/localized_app.dart';
+
+/// Capture minimale sur fakes : l'écran « mon micro » d'une session montre
+/// désormais la capture que le ViewModel possède (MVP-13), il en faut donc une.
+CaptureViewModel buildCapture() => CaptureViewModel(
+  capture: CaptureSpeechUseCase(
+    mic: FakeMicAudioSource(),
+    vad: FakeVadService(),
+    guard: FakeBackgroundCaptureGuard(),
+  ),
+  transcribe: TranscribeSegmentsUseCase(engine: FakeSttEngine()),
+);
 
 const validPayload = QrSessionPayload(
   sessionName: 'Repas',
@@ -106,7 +122,8 @@ QrScannerBuilder scannerBuilding(String raw) =>
   String scanned = '',
   bool showScanner = true,
   PermissionGate? microphoneGate,
-  Widget Function()? captureBuilder,
+  Widget Function(CaptureViewModel capture)? captureBuilder,
+  CaptureViewModel Function()? createCapture,
 }) {
   final client = _FakeGuestClient();
   final browser = _FakeBrowser();
@@ -116,6 +133,7 @@ QrScannerBuilder scannerBuilding(String raw) =>
         client: client,
         browser: browser,
         initialName: 'Invité',
+        createCapture: createCapture,
       ),
       scannerBuilder: scannerBuilding(
         scanned.isEmpty ? validPayload.encode() : scanned,
@@ -368,7 +386,8 @@ void main() {
     'connecté → le micro branché sur la session est accessible (MVP-11)',
     (tester) async {
       final (:view, client: _, browser: _) = buildView(
-        captureBuilder: () =>
+        createCapture: buildCapture,
+        captureBuilder: (_) =>
             const Scaffold(body: Center(child: Text('mon micro'))),
       );
       await pumpLocalized(tester, view);

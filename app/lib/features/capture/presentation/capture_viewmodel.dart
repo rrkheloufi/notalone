@@ -6,6 +6,7 @@ import 'package:notalone/core/result/failure.dart';
 import 'package:notalone/core/result/result.dart';
 import 'package:notalone/features/capture/domain/capture_speech_use_case.dart';
 import 'package:notalone/features/capture/domain/capture_status.dart';
+import 'package:notalone/features/capture/domain/mic_status_reporter.dart';
 import 'package:notalone/features/capture/domain/segment_publisher.dart';
 import 'package:notalone/features/capture/domain/speech_segment.dart';
 import 'package:notalone/features/capture/domain/transcribe_segments_use_case.dart';
@@ -24,6 +25,7 @@ class CaptureViewModel extends ChangeNotifier {
     required this._capture,
     required this._transcribe,
     this._publisher,
+    this._micStatus,
   }) {
     startCommand = Command0(_start);
     stopCommand = Command0(_stop);
@@ -44,6 +46,11 @@ class CaptureViewModel extends ChangeNotifier {
   /// l'accueil) : on capte et on transcrit pour vérifier son matériel, sans
   /// rien envoyer à personne.
   final SegmentPublisher? _publisher;
+
+  /// Nul pour la même raison que [_publisher] : hors session, personne ne
+  /// supervise ce micro. En session, chaque changement d'état part vers l'hôte
+  /// (MVP-13).
+  final MicStatusReporter? _micStatus;
 
   final List<StreamSubscription<void>> _subscriptions = [];
 
@@ -135,6 +142,23 @@ class CaptureViewModel extends ChangeNotifier {
 
   void _onStatus(CaptureStatus status) {
     if (status == CaptureStatus.active) _streamFailure = null;
+    // Poussé à chaque transition et non interrogé par l'hôte : c'est ce qui
+    // rend une coupure de micro visible en moins de 10 s (critère MVP-13).
+    _micStatus?.report(status);
+    notifyListeners();
+  }
+
+  /// Fin de session : le micro s'arrête et **il ne reste rien** de ce que ce
+  /// téléphone a entendu. Le transcript est éphémère par principe (CLAUDE.md
+  /// règle 5) et le critère MVP-13 exige qu'aucune trace ne subsiste sur aucun
+  /// appareil — celui-ci compris, alors même qu'il n'affichait que ses vingt
+  /// derniers segments.
+  Future<void> endSession() async {
+    await _capture.stop();
+    _segments.clear();
+    _transcriptions.clear();
+    _streamFailure = null;
+    _sttFailure = null;
     notifyListeners();
   }
 
@@ -151,6 +175,9 @@ class CaptureViewModel extends ChangeNotifier {
     unawaited(_capture.dispose());
     unawaited(_transcribe.dispose());
     unawaited(_publisher?.dispose());
+    unawaited(_micStatus?.dispose());
+    _segments.clear();
+    _transcriptions.clear();
     startCommand.dispose();
     stopCommand.dispose();
     toggleMuteCommand.dispose();

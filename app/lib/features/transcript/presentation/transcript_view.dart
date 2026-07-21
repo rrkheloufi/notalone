@@ -20,6 +20,7 @@ class TranscriptView extends StatefulWidget {
     required this.viewModel,
     this.sessionName,
     this.qrData,
+    this.supervisionBanner,
     super.key,
   });
 
@@ -31,6 +32,12 @@ class TranscriptView extends StatefulWidget {
   /// Payload du QR, pour faire entrer un retardataire sans quitter le fil.
   /// Nul quand la session n'expose pas de QR (tests, session terminée).
   final String? qrData;
+
+  /// Bandeau de supervision, **construit par le salon** et posé en haut du fil
+  /// (MVP-13). Injecté plutôt qu'importé : c'est ce qui laisse `transcript/`
+  /// ignorer `session/`, dont le fil n'a par ailleurs aucun besoin
+  /// (CLAUDE.md règle 3). Nul hors session hôte.
+  final Widget? supervisionBanner;
 
   @override
   State<TranscriptView> createState() => _TranscriptViewState();
@@ -136,6 +143,10 @@ class _TranscriptViewState extends State<TranscriptView> {
             final messages = viewModel.visibleMessages;
             return Column(
               children: [
+                // Au-dessus du filtre : une alerte micro concerne toute la
+                // conversation, le filtre n'en concerne qu'une partie.
+                if (widget.supervisionBanner != null)
+                  widget.supervisionBanner!,
                 if (viewModel.isFiltered)
                   _FilterBanner(
                     // Le prénom peut manquer si l'annuaire ne connaît pas

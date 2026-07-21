@@ -12,9 +12,20 @@ import 'package:notalone/features/capture/presentation/capture_viewmodel.dart';
 /// Écran de capture de l'invité : ce que son micro entend. Le transcript
 /// fusionné, lui, s'affiche chez l'hôte (MVP-12).
 class CaptureView extends StatefulWidget {
-  const CaptureView({required this.viewModel, super.key});
+  const CaptureView({
+    required this.viewModel,
+    this.ownsViewModel = true,
+    super.key,
+  });
 
   final CaptureViewModel viewModel;
+
+  /// Faux quand l'écran est ouvert **depuis une session** : la capture y
+  /// appartient au `JoinViewModel` et lui survit — la refermer ne doit pas
+  /// couper le micro d'un invité qui range son téléphone dans sa poche
+  /// (MVP-13). Vrai pour l'écran « mon micro » de l'accueil, qui construit sa
+  /// propre capture et n'a personne d'autre à qui la confier.
+  final bool ownsViewModel;
 
   @override
   State<CaptureView> createState() => _CaptureViewState();
@@ -23,7 +34,7 @@ class CaptureView extends StatefulWidget {
 class _CaptureViewState extends State<CaptureView> {
   @override
   void dispose() {
-    widget.viewModel.dispose();
+    if (widget.ownsViewModel) widget.viewModel.dispose();
     super.dispose();
   }
 

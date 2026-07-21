@@ -266,4 +266,28 @@ void main() {
     await binding.emit(entry(participantId: 'p1', text: 'pendant l’absence'));
     expect(viewModel.messages, hasLength(1));
   });
+
+  group('bandeau de supervision injecté (MVP-13)', () {
+    testWidgets('posé en haut du fil quand le salon en fournit un', (
+      tester,
+    ) async {
+      // Injecté, jamais importé : c'est ce qui laisse `transcript/` ignorer
+      // `session/` (CLAUDE.md règle 3).
+      await pumpLocalized(
+        tester,
+        TranscriptView(
+          viewModel: viewModel,
+          supervisionBanner: const Text('le micro de Paul est coupé'),
+        ),
+      );
+
+      expect(find.text('le micro de Paul est coupé'), findsOneWidget);
+    });
+
+    testWidgets('sans bandeau, le fil reste celui de MVP-12', (tester) async {
+      await pumpLocalized(tester, TranscriptView(viewModel: viewModel));
+
+      expect(find.text("Personne n'a encore parlé"), findsOneWidget);
+    });
+  });
 }

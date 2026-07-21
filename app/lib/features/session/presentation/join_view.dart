@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:notalone/core/l10n/l10n_keys.dart';
 import 'package:notalone/core/theme/speaker_colors.dart';
+import 'package:notalone/features/capture/presentation/capture_viewmodel.dart';
 import 'package:notalone/features/onboarding/presentation/permission_gate.dart';
 import 'package:notalone/features/onboarding/presentation/permission_gate_viewmodel.dart';
 import 'package:notalone/features/session/domain/discovered_session.dart';
@@ -34,9 +35,11 @@ class JoinView extends StatefulWidget {
   final QrScannerBuilder scannerBuilder;
 
   /// Écran « mon micro » branché sur **cette** session : ce qu'il transcrit
-  /// part sur le fil (MVP-11). Nul en test, et quand l'écran est ouvert sans
-  /// pipeline de capture.
-  final Widget Function()? captureBuilder;
+  /// part sur le fil (MVP-11). Il reçoit la capture que le ViewModel possède
+  /// déjà — l'écran ne fait que la montrer, il ne la crée ni ne la ferme
+  /// (MVP-13). Nul en test, et quand l'écran est ouvert sans pipeline de
+  /// capture.
+  final Widget Function(CaptureViewModel capture)? captureBuilder;
 
   /// Faux quand la caméra a été refusée : l'écran se rabat sur les sessions
   /// annoncées en mDNS, seul chemin qui reste pour entrer (décision Rayan,
@@ -101,11 +104,12 @@ class _JoinViewState extends State<JoinView> {
 
   void _openCapture() {
     final builder = widget.captureBuilder;
-    if (builder == null) return;
+    final capture = widget.viewModel.capture;
+    if (builder == null || capture == null) return;
     unawaited(
       Navigator.of(
         context,
-      ).push(MaterialPageRoute<void>(builder: (_) => builder())),
+      ).push(MaterialPageRoute<void>(builder: (_) => builder(capture))),
     );
   }
 
@@ -134,7 +138,8 @@ class _JoinViewState extends State<JoinView> {
           ),
           JoinStep.connected => _Connected(
             viewModel: viewModel,
-            onOpenCapture: widget.captureBuilder == null
+            onOpenCapture:
+                widget.captureBuilder == null || viewModel.capture == null
                 ? null
                 : _openCapture,
           ),

@@ -55,6 +55,18 @@ abstract final class L10nKeys {
 
   static const String settingsSaveError = 'settings.saveError';
 
+  static const String settingsTextSizeTitle = 'settings.textSizeTitle';
+
+  static const String settingsTextSizeHint = 'settings.textSizeHint';
+
+  static const String settingsTextSizePreview = 'settings.textSizePreview';
+
+  static const String settingsTextSizeSmall = 'settings.textSizeSmall';
+
+  static const String settingsTextSizeMedium = 'settings.textSizeMedium';
+
+  static const String settingsTextSizeLarge = 'settings.textSizeLarge';
+
   static const String hostLobbyTitle = 'hostLobby.title';
 
   static const String hostLobbyScanMe = 'hostLobby.scanMe';
@@ -74,6 +86,37 @@ abstract final class L10nKeys {
   static const String hostLobbySessionName = 'hostLobby.sessionName';
 
   static const String hostLobbyStart = 'hostLobby.start';
+
+  static const String hostLobbyMicActive = 'hostLobby.micActive';
+
+  static const String hostLobbyMicMuted = 'hostLobby.micMuted';
+
+  static const String hostLobbyMicInterrupted = 'hostLobby.micInterrupted';
+
+  static const String hostLobbyMicUnknown = 'hostLobby.micUnknown';
+
+  static const String hostLobbyBatteryLow = 'hostLobby.batteryLow';
+
+  static const String hostLobbyBattery = 'hostLobby.battery';
+
+  static const String hostLobbyMuteSelf = 'hostLobby.muteSelf';
+
+  static const String hostLobbyUnmuteSelf = 'hostLobby.unmuteSelf';
+
+  static const String hostLobbyEndConfirmTitle = 'hostLobby.endConfirmTitle';
+
+  static const String hostLobbyEndConfirmMessage =
+      'hostLobby.endConfirmMessage';
+
+  static const String hostLobbyEndConfirmCancel = 'hostLobby.endConfirmCancel';
+
+  static const String hostLobbyEndConfirmAccept = 'hostLobby.endConfirmAccept';
+
+  static const String hostLobbyEndedTitle = 'hostLobby.endedTitle';
+
+  static const String hostLobbyEndedMessage = 'hostLobby.endedMessage';
+
+  static const String hostLobbyEndedBackHome = 'hostLobby.endedBackHome';
 
   static const String transcriptTitle = 'transcript.title';
 
@@ -100,6 +143,21 @@ abstract final class L10nKeys {
   static const String transcriptFilterClear = 'transcript.filterClear';
 
   static const String transcriptFilterEmpty = 'transcript.filterEmpty';
+
+  static const String transcriptAlertMuted = 'transcript.alertMuted';
+
+  static const String transcriptAlertInterrupted =
+      'transcript.alertInterrupted';
+
+  static const String transcriptAlertLowBattery =
+      'transcript.alertLowBattery';
+
+  static const String transcriptAlertDisconnected =
+      'transcript.alertDisconnected';
+
+  static const String transcriptAlertMore = 'transcript.alertMore';
+
+  static const String transcriptAlertOpenPanel = 'transcript.alertOpenPanel';
 
   static const String joinTitle = 'join.title';
 

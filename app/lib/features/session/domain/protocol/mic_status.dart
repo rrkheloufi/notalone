@@ -14,7 +14,12 @@ final class MicStatus extends SessionMessage {
   static const wireType = 'mic_status';
 
   final MicStatusState state;
-  final int batteryPct;
+
+  /// Pourcentage restant, **absent du payload** quand la plateforme ne sait pas
+  /// le dire (poste de dev, plugin manquant). Nul plutôt que zéro : « je ne
+  /// sais pas » et « batterie vide » ne déclenchent pas la même alerte chez
+  /// l'hôte, et un `0` par défaut aurait affolé le panneau sans raison.
+  final int? batteryPct;
 
   @override
   String get type => wireType;
@@ -22,7 +27,7 @@ final class MicStatus extends SessionMessage {
   @override
   Map<String, Object?> toPayloadJson() => {
     'state': state.name,
-    'batteryPct': batteryPct,
+    if (batteryPct != null) 'batteryPct': batteryPct,
   };
 
   static Result<MicStatus> fromPayload(Map<String, Object?> payload) {
@@ -39,9 +44,11 @@ final class MicStatus extends SessionMessage {
         MessageMalformedFailure('mic_status : state inconnu « $state »'),
       );
     }
-    if (batteryPct is! int) {
+    // Champ facultatif : absent vaut « inconnu ». Présent mais d'un autre type,
+    // c'est en revanche un message malformé — on ne devine pas.
+    if (batteryPct is! int?) {
       return const Result.err(
-        MessageMalformedFailure('mic_status : batteryPct absent'),
+        MessageMalformedFailure('mic_status : batteryPct non entier'),
       );
     }
     return Result.ok(MicStatus(state: parsedState, batteryPct: batteryPct));

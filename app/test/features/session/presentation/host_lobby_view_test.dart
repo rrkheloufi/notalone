@@ -8,6 +8,7 @@ import 'package:notalone/features/session/domain/participant.dart';
 import 'package:notalone/features/session/domain/protocol/session_message.dart';
 import 'package:notalone/features/session/domain/session_discovery.dart';
 import 'package:notalone/features/session/domain/session_failure.dart';
+import 'package:notalone/features/session/domain/supervise_participants_use_case.dart';
 import 'package:notalone/features/session/presentation/host_lobby_view.dart';
 import 'package:notalone/features/session/presentation/host_lobby_viewmodel.dart';
 import 'package:notalone/features/transcript/presentation/transcript_view.dart';
@@ -94,6 +95,7 @@ build({TranscriptViewModel? transcript}) {
     viewModel: HostLobbyViewModel(
       server: server,
       advertiser: advertiser,
+      supervision: SuperviseParticipantsUseCase(server: server),
       hostName: 'Rayan',
       sessionName: 'Conversation de Rayan',
       transcript: transcript,
@@ -129,7 +131,7 @@ void main() {
 
     expect(find.byType(PrettyQrView), findsOneWidget);
     expect(find.text('Fais scanner ce code aux autres'), findsOneWidget);
-    expect(find.text('Rayan'), findsOneWidget);
+    expect(find.text('Rayan (toi)'), findsOneWidget);
   });
 
   testWidgets('les convives apparaissent avec leur état', (tester) async {
@@ -144,9 +146,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Camille'), findsOneWidget);
-    expect(find.text('connecté'), findsOneWidget);
-    expect(find.text('toi'), findsOneWidget);
+    expect(find.text('Rayan (toi)'), findsOneWidget);
     expect(find.text('Autour de la table (2)'), findsOneWidget);
+    // Aucun `mic_status` reçu : le panneau ne prétend pas savoir. Un « micro
+    // actif » optimiste ferait croire à l'hôte que tout va bien (MVP-13).
+    expect(
+      find.text('micro : pas encore de nouvelles'),
+      findsNWidgets(2),
+    );
   });
 
   testWidgets('un invité déconnecté est signalé', (tester) async {
@@ -268,9 +275,77 @@ void main() {
 
       await tester.tap(find.text('Terminer la conversation'));
       await tester.pumpAndSettle();
-
+      await tester.tap(find.text('Terminer et effacer'));
+      await tester.pumpAndSettle();
       // Rien du fil ne survit à la fin de session (CLAUDE.md règle 5).
       expect(binding.isDisposed, isTrue);
+    });
+  });
+
+  group('fin de session (MVP-13)', () {
+    testWidgets('la fin est confirmée avant d’effacer', (tester) async {
+      final (viewModel: transcript, :binding) = buildTranscript();
+      final (:viewModel, server: _, advertiser: _) = build(
+        transcript: transcript,
+      );
+      await pumpLocalized(tester, HostLobbyView(viewModel: viewModel));
+
+      await tester.tap(find.text('Terminer la conversation'));
+      await tester.pumpAndSettle();
+
+      // La conséquence est énoncée **avant** l'action, pas après : elle est
+      // irréversible et oblige tous les convives à rescanner.
+      expect(find.text('Terminer la conversation ?'), findsOneWidget);
+      expect(
+        find.textContaining("Il n'en restera rien."),
+        findsOneWidget,
+      );
+      expect(binding.isDisposed, isFalse);
+    });
+
+    testWidgets('annuler laisse la conversation intacte', (tester) async {
+      final (viewModel: transcript, :binding) = buildTranscript();
+      final (:viewModel, server: _, advertiser: _) = build(
+        transcript: transcript,
+      );
+      await pumpLocalized(tester, HostLobbyView(viewModel: viewModel));
+
+      await tester.tap(find.text('Terminer la conversation'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Continuer la conversation'));
+      await tester.pumpAndSettle();
+
+      expect(binding.isDisposed, isFalse);
+      expect(viewModel.isEnded, isFalse);
+      expect(find.byType(PrettyQrView), findsOneWidget);
+    });
+
+    testWidgets('après la fin, l’écran ne montre plus rien de la '
+        'conversation', (tester) async {
+      final (:viewModel, :server, advertiser: _) = build();
+      await pumpLocalized(tester, HostLobbyView(viewModel: viewModel));
+      server
+        ..participants = const [host, guest]
+        ..emit(
+          const ParticipantJoined(participant: guest, isReconnection: false),
+        );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Terminer la conversation'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Terminer et effacer'));
+      await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Conversation terminée'), findsOneWidget);
+      expect(
+        find.textContaining('Le texte a été effacé partout'),
+        findsOneWidget,
+      );
+      // Le QR et les convives ont disparu avec la session : le lecteur doit
+      // **voir** qu'il ne reste rien (critère MVP-13).
+      expect(find.byType(PrettyQrView), findsNothing);
+      expect(find.text('Camille'), findsNothing);
     });
   });
 }

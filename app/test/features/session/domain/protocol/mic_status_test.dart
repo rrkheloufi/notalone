@@ -39,15 +39,37 @@ void main() {
     );
   });
 
-  test('champ manquant → Failure', () {
-    for (final missing in ['state', 'batteryPct']) {
-      final payload = status.toPayloadJson()..remove(missing);
-      expect(
-        MicStatus.fromPayload(payload).failureOrNull,
-        isA<MessageMalformedFailure>(),
-        reason: 'champ manquant : $missing',
-      );
-    }
+  test('state manquant → Failure', () {
+    final payload = status.toPayloadJson()..remove('state');
+    expect(
+      MicStatus.fromPayload(payload).failureOrNull,
+      isA<MessageMalformedFailure>(),
+    );
+  });
+
+  // Assoupli en MVP-13 : `batteryPct` était obligatoire, il est désormais
+  // facultatif. Une plateforme qui ne sait pas lire sa batterie doit pouvoir
+  // dire l'état de son micro — qui est l'information la plus utile des deux —
+  // sans inventer un pourcentage. Un `0` par défaut aurait affolé le panneau
+  // de supervision de l'hôte sans raison.
+  test('batteryPct absent → décodé, batterie inconnue', () {
+    final payload = status.toPayloadJson()..remove('batteryPct');
+    final decoded = MicStatus.fromPayload(payload).valueOrNull;
+
+    expect(decoded?.state, MicStatusState.active);
+    expect(decoded?.batteryPct, isNull);
+  });
+
+  test('batterie inconnue : le champ ne part pas sur le fil', () {
+    const unknown = MicStatus(state: MicStatusState.active, batteryPct: null);
+
+    expect(unknown.toPayloadJson().keys, unorderedEquals(['state']));
+    expect(
+      SessionMessageCodec.decode(
+        SessionMessageCodec.encode(unknown),
+      ).valueOrNull,
+      unknown,
+    );
   });
 
   test('types invalides → Failure', () {

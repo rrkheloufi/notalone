@@ -39,7 +39,13 @@
     "nameLabel": "Ton prénom",
     "save": "Enregistrer",
     "saved": "Prénom enregistré",
-    "saveError": "Ton prénom n'a pas pu être enregistré. Réessaie."
+    "saveError": "Ton prénom n'a pas pu être enregistré. Réessaie.",
+    "textSizeTitle": "Taille du texte",
+    "textSizeHint": "S'applique à la conversation. Tu peux aussi l'ajuster pendant que tu lis.",
+    "textSizePreview": "Voilà à quoi ressemblera la conversation.",
+    "textSizeSmall": "Normale",
+    "textSizeMedium": "Grande",
+    "textSizeLarge": "Très grande"
   },
   "hostLobby": {
     "title": "Nouvelle conversation",
@@ -51,7 +57,22 @@
     "disconnected": "déconnecté",
     "endSession": "Terminer la conversation",
     "sessionName": "Conversation de {name}",
-    "start": "Commencer la conversation"
+    "start": "Commencer la conversation",
+    "micActive": "micro actif",
+    "micMuted": "micro coupé",
+    "micInterrupted": "micro interrompu",
+    "micUnknown": "micro : pas encore de nouvelles",
+    "batteryLow": "batterie faible ({pct} %)",
+    "battery": "batterie {pct} %",
+    "muteSelf": "Couper mon micro",
+    "unmuteSelf": "Réactiver mon micro",
+    "endConfirmTitle": "Terminer la conversation ?",
+    "endConfirmMessage": "La conversation sera effacée sur ton téléphone et sur celui de chaque convive. Il n'en restera rien.",
+    "endConfirmCancel": "Continuer la conversation",
+    "endConfirmAccept": "Terminer et effacer",
+    "endedTitle": "Conversation terminée",
+    "endedMessage": "Le texte a été effacé partout. Rien n'a été enregistré, ni ici ni ailleurs.",
+    "endedBackHome": "Revenir à l'accueil"
   },
   "transcript": {
     "title": "Conversation",
@@ -69,7 +90,16 @@
     "late": "arrivé en retard",
     "filterActive": "On ne voit que {name}",
     "filterClear": "Revoir tout le monde",
-    "filterEmpty": "{name} n'a encore rien dit"
+    "filterEmpty": "{name} n'a encore rien dit",
+    "alertMuted": "Le micro de {name} est coupé",
+    "alertInterrupted": "Le micro de {name} est interrompu",
+    "alertLowBattery": "La batterie de {name} est presque vide",
+    "alertDisconnected": "{name} n'est plus connecté",
+    "alertMore": {
+      "one": "et 1 autre convive",
+      "other": "et {} autres convives"
+    },
+    "alertOpenPanel": "Voir les micros"
   },
   "join": {
     "title": "Rejoindre",

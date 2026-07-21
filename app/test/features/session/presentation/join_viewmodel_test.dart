@@ -2,6 +2,10 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:notalone/core/result/result.dart';
+import 'package:notalone/features/capture/domain/capture_speech_use_case.dart';
+import 'package:notalone/features/capture/domain/capture_status.dart';
+import 'package:notalone/features/capture/domain/transcribe_segments_use_case.dart';
+import 'package:notalone/features/capture/presentation/capture_viewmodel.dart';
 import 'package:notalone/features/session/domain/discovered_session.dart';
 import 'package:notalone/features/session/domain/guest_client.dart';
 import 'package:notalone/features/session/domain/protocol/session_close_codes.dart';
@@ -10,6 +14,9 @@ import 'package:notalone/features/session/domain/qr_session_payload.dart';
 import 'package:notalone/features/session/domain/session_discovery.dart';
 import 'package:notalone/features/session/domain/session_failure.dart';
 import 'package:notalone/features/session/presentation/join_viewmodel.dart';
+
+import '../../../helpers/fake_capture_sources.dart';
+import '../../../helpers/fake_stt_engine.dart';
 
 const validPayload = QrSessionPayload(
   sessionName: 'Repas',
@@ -100,8 +107,19 @@ final class _FakeBrowser implements SessionBrowser {
   void publish(List<DiscoveredSession> found) => _sessions.add(found);
 }
 
+/// Capture sur sources inertes : le parcours d'entrée n'a besoin que de
+/// pouvoir la démarrer et l'effacer (MVP-13).
+CaptureViewModel buildCapture() => CaptureViewModel(
+  capture: CaptureSpeechUseCase(
+    mic: FakeMicAudioSource(),
+    vad: FakeVadService(),
+    guard: FakeBackgroundCaptureGuard(),
+  ),
+  transcribe: TranscribeSegmentsUseCase(engine: FakeSttEngine()),
+);
+
 ({JoinViewModel viewModel, _FakeGuestClient client, _FakeBrowser browser})
-build() {
+build({CaptureViewModel Function()? createCapture}) {
   final client = _FakeGuestClient();
   final browser = _FakeBrowser();
   return (
@@ -109,6 +127,7 @@ build() {
       client: client,
       browser: browser,
       initialName: 'Invité',
+      createCapture: createCapture,
     ),
     client: client,
     browser: browser,
@@ -328,5 +347,88 @@ void main() {
     await pumpEventQueue();
 
     expect(client.disposeCalls, 1);
+  });
+
+  group('la capture appartient à la session (MVP-13)', () {
+    Future<JoinViewModel> connected() async {
+      final (:viewModel, client: _, browser: _) = build(
+        createCapture: buildCapture,
+      );
+      await viewModel.scanCommand.execute(validPayload.encode());
+      await viewModel.joinCommand.execute('Paul');
+      return viewModel;
+    }
+
+    test('entrer en session démarre la capture sans ouvrir d’écran', () async {
+      // L'invité est censé poser son téléphone (doc 01 §3), pas surveiller un
+      // moniteur de micro : la capture ne peut pas dépendre d'un écran ouvert.
+      final viewModel = await connected();
+      addTearDown(viewModel.dispose);
+      await pumpEventQueue();
+
+      expect(viewModel.capture, isNotNull);
+      expect(viewModel.capture!.status, CaptureStatus.active);
+    });
+
+    test('session_end : le micro s’arrête et rien n’est gardé', () async {
+      final (:viewModel, :client, browser: _) = build(
+        createCapture: buildCapture,
+      );
+      addTearDown(viewModel.dispose);
+      await viewModel.scanCommand.execute(validPayload.encode());
+      await viewModel.joinCommand.execute('Paul');
+      await pumpEventQueue();
+      final capture = viewModel.capture!;
+
+      client.emit(const GuestSessionEnded());
+      await pumpEventQueue();
+
+      expect(viewModel.step, JoinStep.ended);
+      // Chaque client efface tout (doc 02 §4) : ce téléphone n'attend pas que
+      // l'invité revienne au scan pour le faire.
+      expect(viewModel.capture, isNull);
+      expect(capture.segments, isEmpty);
+      expect(capture.status, CaptureStatus.idle);
+    });
+
+    test('connexion perdue : la capture s’arrête aussi', () async {
+      final (:viewModel, :client, browser: _) = build(
+        createCapture: buildCapture,
+      );
+      addTearDown(viewModel.dispose);
+      await viewModel.scanCommand.execute(validPayload.encode());
+      await viewModel.joinCommand.execute('Paul');
+      await pumpEventQueue();
+
+      client.emit(const GuestConnectionLost(ConnectionTimeoutFailure()));
+      await pumpEventQueue();
+
+      expect(viewModel.step, JoinStep.lost);
+      expect(viewModel.capture, isNull);
+    });
+
+    test('revenir au scan libère la capture', () async {
+      final viewModel = await connected();
+      addTearDown(viewModel.dispose);
+      await pumpEventQueue();
+
+      await viewModel.backToScanning();
+      await pumpEventQueue();
+
+      expect(viewModel.capture, isNull);
+    });
+
+    test('sans fabrique, le parcours reste entier', () async {
+      // Les autres tests de ce fichier n'ont pas de pipeline de capture : le
+      // parcours d'entrée ne doit pas en dépendre.
+      final (:viewModel, client: _, browser: _) = build();
+      addTearDown(viewModel.dispose);
+
+      await viewModel.scanCommand.execute(validPayload.encode());
+      await viewModel.joinCommand.execute('Paul');
+
+      expect(viewModel.step, JoinStep.connected);
+      expect(viewModel.capture, isNull);
+    });
   });
 }

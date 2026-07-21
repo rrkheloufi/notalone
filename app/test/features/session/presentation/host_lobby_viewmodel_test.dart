@@ -4,10 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:notalone/core/result/result.dart';
 import 'package:notalone/features/session/domain/host_server.dart';
 import 'package:notalone/features/session/domain/participant.dart';
+import 'package:notalone/features/session/domain/participant_supervision.dart';
 import 'package:notalone/features/session/domain/protocol/session_message.dart';
 import 'package:notalone/features/session/domain/qr_session_payload.dart';
 import 'package:notalone/features/session/domain/session_discovery.dart';
 import 'package:notalone/features/session/domain/session_failure.dart';
+import 'package:notalone/features/session/domain/supervise_participants_use_case.dart';
 import 'package:notalone/features/session/presentation/host_lobby_viewmodel.dart';
 
 const host = Participant(
@@ -104,6 +106,7 @@ build() {
     viewModel: HostLobbyViewModel(
       server: server,
       advertiser: advertiser,
+      supervision: SuperviseParticipantsUseCase(server: server),
       hostName: 'Rayan',
       sessionName: 'Conversation de Rayan',
     ),
@@ -111,6 +114,11 @@ build() {
     advertiser: advertiser,
   );
 }
+
+/// Le salon expose désormais des `ParticipantSupervision` (MVP-13) : les
+/// assertions d'identité de MVP-06 se lisent à travers cette projection.
+List<Participant> supervised(HostLobbyViewModel viewModel) =>
+    [for (final entry in viewModel.participants) entry.participant];
 
 void main() {
   group('démarrage', () {
@@ -179,7 +187,7 @@ void main() {
     test('arrivée et départ mettent la liste à jour', () async {
       final (:viewModel, :server, advertiser: _) = build();
       await viewModel.startCommand.execute();
-      expect(viewModel.participants, [host]);
+      expect(supervised(viewModel), [host]);
 
       server
         ..participants = const [host, guest]
@@ -187,7 +195,7 @@ void main() {
           const ParticipantJoined(participant: guest, isReconnection: false),
         );
       await pumpEventQueue();
-      expect(viewModel.participants, [host, guest]);
+      expect(supervised(viewModel), [host, guest]);
 
       const gone = Participant(
         id: 'g1',
@@ -200,7 +208,7 @@ void main() {
         ..participants = const [host, gone]
         ..emit(const ParticipantDisconnected(gone));
       await pumpEventQueue();
-      expect(viewModel.participants.last.isConnected, isFalse);
+      expect(viewModel.participants.last.participant.isConnected, isFalse);
     });
 
     test('un refus est signalé à l’hôte puis effaçable', () async {
@@ -229,7 +237,7 @@ void main() {
       );
       await pumpEventQueue();
 
-      expect(viewModel.participants, [host]);
+      expect(supervised(viewModel), [host]);
     });
   });
 
@@ -270,6 +278,77 @@ void main() {
         1,
         reason: 'aucun serveur ne doit survivre à son écran',
       );
+    });
+  });
+
+  group('supervision (MVP-13)', () {
+    test('un mic_status coupé remonte au salon', () async {
+      final (:viewModel, :server, advertiser: _) = build();
+      await viewModel.startCommand.execute();
+      server
+        ..participants = const [host, guest]
+        ..emit(
+          const ParticipantJoined(participant: guest, isReconnection: false),
+        );
+      await pumpEventQueue();
+
+      server.emit(
+        const SessionMessageReceived(
+          participantId: 'g1',
+          message: MicStatus(state: MicStatusState.muted, batteryPct: 80),
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(viewModel.hasAlerts, isTrue);
+      expect(viewModel.alerts.single.name, 'Camille');
+      expect(viewModel.alerts.single.alert, SupervisionAlert.muted);
+    });
+
+    test('la ligne de l’hôte existe dès le démarrage', () async {
+      // `registerHost` n'émet pas d'événement : le salon rappelle la
+      // supervision après `start()`, sinon l'hôte ne se verrait pas lui-même.
+      final (:viewModel, server: _, advertiser: _) = build();
+
+      await viewModel.startCommand.execute();
+
+      expect(viewModel.participants.map((e) => e.name), ['Rayan']);
+      expect(viewModel.hasAlerts, isFalse);
+    });
+
+    test('un changement de supervision redessine le salon', () async {
+      final (:viewModel, :server, advertiser: _) = build();
+      await viewModel.startCommand.execute();
+      var notifications = 0;
+      viewModel.addListener(() => notifications++);
+
+      server.emit(
+        const SessionMessageReceived(
+          participantId: 'h1',
+          message: MicStatus(state: MicStatusState.muted, batteryPct: 80),
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(notifications, greaterThan(0));
+    });
+
+    test('fin de session : plus personne à superviser', () async {
+      final (:viewModel, :server, advertiser: _) = build();
+      await viewModel.startCommand.execute();
+      server
+        ..participants = const [host, guest]
+        ..emit(
+          const ParticipantJoined(participant: guest, isReconnection: false),
+        );
+      await pumpEventQueue();
+
+      await viewModel.endSessionCommand.execute();
+      await pumpEventQueue();
+
+      expect(viewModel.isEnded, isTrue);
+      expect(viewModel.participants, isEmpty);
+      expect(viewModel.alerts, isEmpty);
     });
   });
 }
