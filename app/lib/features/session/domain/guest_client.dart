@@ -99,9 +99,10 @@ final class GuestSessionEnded extends GuestClientEvent {
   const GuestSessionEnded();
 }
 
-/// Message applicatif reçu de l'hôte (`clock_sync`, `session_end` exclu…).
-/// Les `ping` du keepalive reçoivent leur `pong` dans le client et
-/// n'apparaissent pas ici.
+/// Message applicatif reçu de l'hôte. Les échanges que le client tient
+/// lui-même — le `pong` du keepalive et la réponse au `clock_sync` (MVP-11) —
+/// n'apparaissent pas ici : les remonter n'aurait servi qu'à retarder la
+/// réponse, donc à dégrader la mesure d'horloge.
 final class GuestMessageReceived extends GuestClientEvent {
   const GuestMessageReceived(this.message);
 

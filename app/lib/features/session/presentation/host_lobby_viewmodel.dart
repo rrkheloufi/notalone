@@ -7,6 +7,7 @@ import 'package:notalone/features/session/domain/host_server.dart';
 import 'package:notalone/features/session/domain/participant.dart';
 import 'package:notalone/features/session/domain/qr_session_payload.dart';
 import 'package:notalone/features/session/domain/session_discovery.dart';
+import 'package:notalone/features/transcript/domain/transcript_binding.dart';
 
 /// Salon de l'hôte : il démarre la session, montre le QR à scanner et voit
 /// les convives arriver (cf. cowork/01-cadrage-produit.md §3).
@@ -16,12 +17,18 @@ class HostLobbyViewModel extends ChangeNotifier {
     required this._advertiser,
     required this._hostName,
     required this._sessionName,
+    this._transcript,
   });
 
   final HostServer _server;
   final SessionAdvertiser _advertiser;
   final String _hostName;
   final String _sessionName;
+
+  /// La fusion branchée sur cette session. Le salon la tient parce qu'il tient
+  /// la durée de vie de la session elle-même ; MVP-12 la lui reprendra en même
+  /// temps qu'il prendra l'écran du fil. Nulle en test, et hors session.
+  final TranscriptBinding? _transcript;
 
   late final Command0<void> startCommand = Command0(_start);
   late final Command0<void> endSessionCommand = Command0(_endSession);
@@ -101,7 +108,8 @@ class HostLobbyViewModel extends ChangeNotifier {
       case ParticipantRejected(:final reason):
         _lastRejection = reason;
       case SessionMessageReceived():
-        // Les messages applicatifs sont l'affaire du transcript (MVP-11).
+        // Les messages applicatifs vont au transcript, qui écoute le même flux
+        // d'événements (`HostTranscriptBinder`) : le salon n'a rien à en faire.
         return;
     }
     notifyListeners();
@@ -111,6 +119,7 @@ class HostLobbyViewModel extends ChangeNotifier {
     if (!_isRunning || _isEnded) return const Result.ok(null);
     await _advertiser.stop();
     await _server.endSession();
+    await _transcript?.dispose();
     _isEnded = true;
     _isRunning = false;
     _isDiscoverable = false;
@@ -123,7 +132,10 @@ class HostLobbyViewModel extends ChangeNotifier {
   void dispose() {
     unawaited(_eventsSubscription?.cancel());
     unawaited(_advertiser.stop());
-    if (!_isEnded) unawaited(_server.endSession());
+    if (!_isEnded) {
+      unawaited(_server.endSession());
+      unawaited(_transcript?.dispose());
+    }
     startCommand.dispose();
     endSessionCommand.dispose();
     super.dispose();

@@ -106,6 +106,7 @@ QrScannerBuilder scannerBuilding(String raw) =>
   String scanned = '',
   bool showScanner = true,
   PermissionGate? microphoneGate,
+  Widget Function()? captureBuilder,
 }) {
   final client = _FakeGuestClient();
   final browser = _FakeBrowser();
@@ -121,10 +122,19 @@ QrScannerBuilder scannerBuilding(String raw) =>
       ),
       showScanner: showScanner,
       microphoneGate: microphoneGate,
+      captureBuilder: captureBuilder,
     ),
     client: client,
     browser: browser,
   );
+}
+
+/// Entre dans la session jusqu'à l'écran « connecté ».
+Future<void> connect(WidgetTester tester) async {
+  await tester.tap(find.text('scanner'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.widgetWithText(FilledButton, 'Rejoindre'));
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -352,5 +362,31 @@ void main() {
 
     expect(find.textContaining('Connexion à l hôte expirée'), findsOneWidget);
     expect(find.text('Scanner à nouveau'), findsOneWidget);
+  });
+
+  testWidgets(
+    'connecté → le micro branché sur la session est accessible (MVP-11)',
+    (tester) async {
+      final (:view, client: _, browser: _) = buildView(
+        captureBuilder: () =>
+            const Scaffold(body: Center(child: Text('mon micro'))),
+      );
+      await pumpLocalized(tester, view);
+      await connect(tester);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Voir mon micro'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('mon micro'), findsOneWidget);
+    },
+  );
+
+  testWidgets('sans pipeline de capture, aucun bouton micro', (tester) async {
+    final (:view, client: _, browser: _) = buildView();
+    await pumpLocalized(tester, view);
+    await connect(tester);
+
+    expect(find.text('Voir mon micro'), findsNothing);
+    expect(find.text('Quitter la conversation'), findsOneWidget);
   });
 }

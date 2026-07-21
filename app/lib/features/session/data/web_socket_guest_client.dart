@@ -14,6 +14,8 @@ import 'package:notalone/features/session/domain/qr_session_payload.dart';
 import 'package:notalone/features/session/domain/session_failure.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+int _epochNowMs() => DateTime.now().millisecondsSinceEpoch;
+
 /// Client WebSocket de l'invité (`web_socket_channel`), pendant du
 /// `DartIoHostServer` (cf. cowork/02-architecture.md §4).
 ///
@@ -26,10 +28,16 @@ class WebSocketGuestClient implements GuestClient {
   WebSocketGuestClient({
     this._config = const GuestConfig(),
     this._appVersion = AppInfo.version,
+    this._now = _epochNowMs,
   });
 
   final GuestConfig _config;
   final String _appVersion;
+
+  /// Horloge locale de l'invité, celle-là même qui date ses `speech_segment` :
+  /// c'est son écart avec celle de l'hôte que le `clock_sync` mesure.
+  /// Injectable pour rendre les tests déterministes.
+  final int Function() _now;
 
   final StreamController<GuestClientEvent> _events =
       StreamController<GuestClientEvent>.broadcast();
@@ -185,11 +193,34 @@ class WebSocketGuestClient implements GuestClient {
         _ended = true;
         _emit(const GuestSessionEnded());
         unawaited(_closeChannel());
+      case ClockSync(:final seq, :final tHostSentMs, :final isReply):
+        // Symétrique du `pong`, et traité au même endroit pour la même
+        // raison : chaque étage traversé avant la réponse s'ajoute au temps
+        // de traitement de l'invité, donc au bruit de la mesure. Remonter
+        // l'échange jusqu'à un ViewModel fausserait ce qu'il mesure.
+        if (!isReply) _replyToClockSync(seq: seq, tHostSentMs: tHostSentMs);
       case Pong():
         return; // L'invité n'émet pas de ping : rien à apparier.
-      case ClockSync() || JoinRequest() || MicStatus() || SpeechSegmentDto():
+      case JoinRequest() || MicStatus() || SpeechSegmentDto():
         _emit(GuestMessageReceived(message));
     }
+  }
+
+  /// Renvoie la sonde complétée de `t1`/`t2` — l'hôte y ajoutera `t3` et en
+  /// tirera l'offset (doc 02 §4). Deux relevés distincts : entre les deux, il
+  /// y a l'encodage JSON, et c'est justement ce temps-là que la formule de
+  /// `ClockProbe` retire de l'aller-retour.
+  void _replyToClockSync({required int seq, required int tHostSentMs}) {
+    final channel = _channel;
+    if (channel == null) return;
+    final receivedMs = _now();
+    final reply = ClockSync(
+      seq: seq,
+      tHostSentMs: tHostSentMs,
+      tGuestReceivedMs: receivedMs,
+      tGuestSentMs: _now(),
+    );
+    channel.sink.add(SessionMessageCodec.encode(reply));
   }
 
   void _completeJoin(Result<GuestSession> result) {

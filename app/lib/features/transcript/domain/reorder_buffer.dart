@@ -69,6 +69,35 @@ class ReorderBuffer<T> {
 
   bool get isEmpty => pending == 0;
 
+  /// Entrées encore en attente, rien n'étant figé tant qu'elles sont là.
+  ///
+  /// Exposées pour la déduplication (MVP-11) : c'est **pendant** la fenêtre de
+  /// réordonnancement que deux captations de la même phrase doivent s'arbitrer,
+  /// une fois figées il est trop tard pour en retirer une.
+  Iterable<T> get pendingEntries sync* {
+    for (final entry in _late) {
+      yield entry.value;
+    }
+    for (final entry in _waiting) {
+      yield entry.value;
+    }
+  }
+
+  /// Retire une entrée encore en attente, `false` si elle n'y est plus.
+  ///
+  /// Comparaison par **identité** et non par égalité : deux convives peuvent
+  /// produire deux entrées égales (même texte, même horodatage) sans que
+  /// retirer l'une doive retirer l'autre.
+  bool remove(T entry) =>
+      _removeIdentical(_waiting, entry) || _removeIdentical(_late, entry);
+
+  static bool _removeIdentical<T>(List<_Pending<T>> from, T entry) {
+    final index = from.indexWhere((pending) => identical(pending.value, entry));
+    if (index < 0) return false;
+    from.removeAt(index);
+    return true;
+  }
+
   /// Instant à partir duquel [release] aura quelque chose à rendre, `null` si
   /// le buffer est vide. Permet à l'appelant de programmer son réveil au lieu
   /// d'interroger le buffer en boucle. Une échéance déjà passée signifie

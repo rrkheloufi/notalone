@@ -26,11 +26,17 @@ class JoinView extends StatefulWidget {
     this.scannerBuilder = _buildMobileScanner,
     this.showScanner = true,
     this.microphoneGate,
+    this.captureBuilder,
     super.key,
   });
 
   final JoinViewModel viewModel;
   final QrScannerBuilder scannerBuilder;
+
+  /// Écran « mon micro » branché sur **cette** session : ce qu'il transcrit
+  /// part sur le fil (MVP-11). Nul en test, et quand l'écran est ouvert sans
+  /// pipeline de capture.
+  final Widget Function()? captureBuilder;
 
   /// Faux quand la caméra a été refusée : l'écran se rabat sur les sessions
   /// annoncées en mDNS, seul chemin qui reste pour entrer (décision Rayan,
@@ -93,6 +99,16 @@ class _JoinViewState extends State<JoinView> {
     await widget.viewModel.joinCommand.execute(name);
   }
 
+  void _openCapture() {
+    final builder = widget.captureBuilder;
+    if (builder == null) return;
+    unawaited(
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => builder())),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final viewModel = widget.viewModel;
@@ -116,7 +132,12 @@ class _JoinViewState extends State<JoinView> {
             controller: _nameController,
             onConfirm: _confirmName,
           ),
-          JoinStep.connected => _Connected(viewModel: viewModel),
+          JoinStep.connected => _Connected(
+            viewModel: viewModel,
+            onOpenCapture: widget.captureBuilder == null
+                ? null
+                : _openCapture,
+          ),
           JoinStep.reconnecting => _Reconnecting(viewModel: viewModel),
           JoinStep.lost => _Terminal(
             icon: Icons.wifi_off,
@@ -266,9 +287,12 @@ class _ConfirmName extends StatelessWidget {
 }
 
 class _Connected extends StatelessWidget {
-  const _Connected({required this.viewModel});
+  const _Connected({required this.viewModel, required this.onOpenCapture});
 
   final JoinViewModel viewModel;
+
+  /// Nul quand l'écran est monté sans pipeline de capture (tests).
+  final VoidCallback? onOpenCapture;
 
   @override
   Widget build(BuildContext context) {
@@ -299,6 +323,13 @@ class _Connected extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
+            if (onOpenCapture != null)
+              FilledButton.icon(
+                onPressed: onOpenCapture,
+                icon: const Icon(Icons.mic),
+                label: Text(L10nKeys.joinOpenCapture.tr()),
+              ),
+            const SizedBox(height: 12),
             OutlinedButton(
               onPressed: () => unawaited(viewModel.backToScanning()),
               child: Text(L10nKeys.joinLeave.tr()),

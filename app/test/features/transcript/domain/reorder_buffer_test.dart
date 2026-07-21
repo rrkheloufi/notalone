@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:meta/meta.dart';
 import 'package:notalone/features/transcript/domain/reorder_buffer.dart';
 import 'package:notalone/features/transcript/domain/transcript_timing_config.dart';
 
@@ -294,6 +295,90 @@ void main() {
     });
   });
 
+  group('ReorderBuffer — arbitrage avant figeage (MVP-11)', () {
+    test('pendingEntries expose ce qui attend, tardives comprises', () {
+      final buffer = buildBuffer()
+        ..add((text: 'première', tMs: 1000))
+        ..add((text: 'seconde', tMs: 2000));
+      expect(
+        buffer.pendingEntries.map((entry) => entry.text),
+        containsAll(['première', 'seconde']),
+      );
+
+      buffer.release(3500);
+      expect(buffer.pendingEntries, isEmpty);
+
+      // Une tardive attend elle aussi son tour : la dédup doit pouvoir
+      // l'arbitrer avant qu'elle ne sorte.
+      buffer.add((text: 'tardive', tMs: 500));
+      expect(
+        buffer.pendingEntries.map((entry) => entry.text),
+        ['tardive'],
+      );
+    });
+
+    test('remove retire une entrée encore en attente', () {
+      const loser = (text: 'perdante', tMs: 1000);
+      final buffer = buildBuffer()
+        ..add(loser)
+        ..add((text: 'gagnante', tMs: 1050));
+
+      expect(buffer.remove(loser), isTrue);
+      expect(buffer.pending, 1);
+      expect(textsOf(buffer.release(3000)), ['gagnante']);
+    });
+
+    test('remove retire aussi une tardive', () {
+      const late = (text: 'tardive', tMs: 1000);
+      final buffer = buildBuffer()
+        ..add((text: 'figée', tMs: 5000))
+        ..release(7000)
+        ..add(late);
+
+      expect(buffer.remove(late), isTrue);
+      expect(buffer.release(9000), isEmpty);
+    });
+
+    test('remove sur une entrée déjà figée ou inconnue rend false', () {
+      const frozen = (text: 'figée', tMs: 1000);
+      final buffer = buildBuffer()
+        ..add(frozen)
+        ..release(3000);
+
+      expect(buffer.remove(frozen), isFalse);
+      expect(buffer.remove((text: 'jamais vue', tMs: 42)), isFalse);
+    });
+
+    test('remove compare par identité, pas par égalité', () {
+      // Deux convives peuvent produire deux entrées égales (même texte, même
+      // horodatage) : en retirer une ne doit pas emporter l'autre. C'est ce
+      // que fait la dédup quand elle écarte une captation sur deux.
+      final buffer = ReorderBuffer<_Utterance>(
+        timestampOf: (entry) => entry.tMs,
+      );
+      final first = _utterance('oui', 1000);
+      final second = _utterance('oui', 1000);
+      buffer
+        ..add(first)
+        ..add(second);
+      expect(first, second, reason: 'les deux entrées sont bien égales');
+
+      expect(buffer.remove(first), isTrue);
+      expect(buffer.pending, 1);
+      expect(buffer.pendingEntries.single, same(second));
+    });
+
+    test('retirer la dernière entrée remet nextDueMs à null', () {
+      const only = (text: 'seule', tMs: 1000);
+      final buffer = buildBuffer()..add(only);
+      expect(buffer.nextDueMs, isNotNull);
+
+      expect(buffer.remove(only), isTrue);
+      expect(buffer.nextDueMs, isNull);
+      expect(buffer.isEmpty, isTrue);
+    });
+  });
+
   group('ReorderBuffer — charge', () {
     test('8 flux entremêlés sur 2 h simulées sortent en ordre et ne '
         'laissent rien derrière', () {
@@ -329,4 +414,24 @@ void main() {
       expect(buffer.isEmpty, isTrue);
     });
   });
+}
+
+/// Fabrique deux à deux distinctes : `const _Utterance(...)` serait
+/// canonicalisé, et le test ne prouverait plus rien.
+_Utterance _utterance(String text, int tMs) => _Utterance(text, tMs);
+
+/// Deux prises de parole égales mais distinctes : ce que la dédup manipule.
+@immutable
+class _Utterance {
+  const _Utterance(this.text, this.tMs);
+
+  final String text;
+  final int tMs;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _Utterance && other.text == text && other.tMs == tMs;
+
+  @override
+  int get hashCode => Object.hash(text, tMs);
 }

@@ -2,8 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:notalone/features/capture/domain/capture_failure.dart';
 import 'package:notalone/features/capture/domain/capture_speech_use_case.dart';
 import 'package:notalone/features/capture/domain/capture_status.dart';
+import 'package:notalone/features/capture/domain/segment_publisher.dart';
 import 'package:notalone/features/capture/domain/stt_failure.dart';
 import 'package:notalone/features/capture/domain/transcribe_segments_use_case.dart';
+import 'package:notalone/features/capture/domain/transcribed_segment.dart';
 import 'package:notalone/features/capture/presentation/capture_viewmodel.dart';
 
 import '../../../fixtures/audio_fixtures.dart';
@@ -16,6 +18,7 @@ void main() {
   late FakeBackgroundCaptureGuard guard;
   late CaptureSpeechUseCase capture;
   late FakeSttEngine stt;
+  late _RecordingPublisher publisher;
   late CaptureViewModel viewModel;
 
   Future<void> speak({double amplitude = AudioFixtures.loudVoice}) async {
@@ -32,9 +35,11 @@ void main() {
     guard = FakeBackgroundCaptureGuard();
     capture = CaptureSpeechUseCase(mic: mic, vad: vad, guard: guard);
     stt = FakeSttEngine();
+    publisher = _RecordingPublisher();
     viewModel = CaptureViewModel(
       capture: capture,
       transcribe: TranscribeSegmentsUseCase(engine: stt),
+      publisher: publisher,
     );
   });
 
@@ -246,4 +251,67 @@ void main() {
 
     expect(viewModel.streamFailure, isNull);
   });
+
+  group('publication sur le fil (MVP-11)', () {
+    test('chaque segment transcrit est publié une fois', () async {
+      await viewModel.startCommand.execute();
+      await speak();
+      await FakeMicAudioSource.pump();
+
+      final segmentId = viewModel.segments.single.segmentId;
+      expect(publisher.published, hasLength(1));
+      expect(publisher.published.single.segmentId, segmentId);
+      expect(publisher.published.single.text, isNotEmpty);
+    });
+
+    test("un segment sans texte reconnu n'est pas publié", () async {
+      stt.script(['']);
+      await viewModel.startCommand.execute();
+      await speak();
+      await FakeMicAudioSource.pump();
+
+      // Le VAD a bien retenu une prise de parole, mais il n'y avait rien à
+      // dire : pas de bulle vide dans le fil du lecteur (MVP-10).
+      expect(viewModel.segments, hasLength(1));
+      expect(publisher.published, isEmpty);
+    });
+
+    test('sans publieur, rien ne quitte le téléphone', () async {
+      final solo = CaptureViewModel(
+        capture: CaptureSpeechUseCase(mic: mic, vad: vad, guard: guard),
+        transcribe: TranscribeSegmentsUseCase(engine: FakeSttEngine()),
+      );
+      addTearDown(solo.dispose);
+
+      await solo.startCommand.execute();
+      await speak();
+      await FakeMicAudioSource.pump();
+
+      expect(solo.segments, hasLength(1));
+      expect(publisher.published, isEmpty);
+    });
+
+    test('dispose libère le publieur', () {
+      final ownPublisher = _RecordingPublisher();
+      CaptureViewModel(
+        capture: CaptureSpeechUseCase(mic: mic, vad: vad, guard: guard),
+        transcribe: TranscribeSegmentsUseCase(engine: FakeSttEngine()),
+        publisher: ownPublisher,
+      ).dispose();
+
+      expect(ownPublisher.disposed, isTrue);
+    });
+  });
+}
+
+/// Ce que l'invité met sur le fil, retenu au lieu d'être envoyé.
+class _RecordingPublisher implements SegmentPublisher {
+  final List<TranscribedSegment> published = [];
+  bool disposed = false;
+
+  @override
+  void publish(TranscribedSegment segment) => published.add(segment);
+
+  @override
+  Future<void> dispose() async => disposed = true;
 }

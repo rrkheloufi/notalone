@@ -95,6 +95,8 @@ abstract final class L10nKeys {
 
   static const String joinConnectedHint = 'join.connectedHint';
 
+  static const String joinOpenCapture = 'join.openCapture';
+
   static const String joinLeave = 'join.leave';
 
   static const String joinReconnecting = 'join.reconnecting';

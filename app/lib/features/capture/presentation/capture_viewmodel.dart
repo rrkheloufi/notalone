@@ -6,6 +6,7 @@ import 'package:notalone/core/result/failure.dart';
 import 'package:notalone/core/result/result.dart';
 import 'package:notalone/features/capture/domain/capture_speech_use_case.dart';
 import 'package:notalone/features/capture/domain/capture_status.dart';
+import 'package:notalone/features/capture/domain/segment_publisher.dart';
 import 'package:notalone/features/capture/domain/speech_segment.dart';
 import 'package:notalone/features/capture/domain/transcribe_segments_use_case.dart';
 import 'package:notalone/features/capture/domain/transcribed_segment.dart';
@@ -13,12 +14,17 @@ import 'package:notalone/features/capture/domain/transcribed_segment.dart';
 /// Écran de capture de l'invité : état du micro, prises de parole détectées et
 /// texte que le moteur STT en a tiré.
 ///
-/// Il n'envoie encore rien à l'hôte (MVP-11 possède le câblage du fil) — il
-/// rend visible ce que ce téléphone capte et comprend, ce qui est aussi ce qui
-/// permet de dérouler sur appareil réel la checklist d'interruptions (MVP-08)
-/// et les 10 phrases scriptées (MVP-10).
+/// Ouvert depuis une session, il publie chaque segment transcrit via son
+/// [SegmentPublisher] ; ouvert depuis l'accueil, il ne publie rien et sert à
+/// vérifier son micro. Dans les deux cas il rend visible ce que ce téléphone
+/// capte et comprend, ce qui permet de dérouler sur appareil réel la checklist
+/// d'interruptions (MVP-08) et les 10 phrases scriptées (MVP-10).
 class CaptureViewModel extends ChangeNotifier {
-  CaptureViewModel({required this._capture, required this._transcribe}) {
+  CaptureViewModel({
+    required this._capture,
+    required this._transcribe,
+    this._publisher,
+  }) {
     startCommand = Command0(_start);
     stopCommand = Command0(_stop);
     toggleMuteCommand = Command0(_toggleMute);
@@ -33,6 +39,12 @@ class CaptureViewModel extends ChangeNotifier {
 
   final CaptureSpeechUseCase _capture;
   final TranscribeSegmentsUseCase _transcribe;
+
+  /// Nul quand l'écran est ouvert hors session (« mon micro » depuis
+  /// l'accueil) : on capte et on transcrit pour vérifier son matériel, sans
+  /// rien envoyer à personne.
+  final SegmentPublisher? _publisher;
+
   final List<StreamSubscription<void>> _subscriptions = [];
 
   late final Command0<void> startCommand;
@@ -109,6 +121,10 @@ class CaptureViewModel extends ChangeNotifier {
   void _onTranscription(TranscribedSegment transcribed) {
     _sttFailure = null;
     _transcriptions[transcribed.segmentId] = transcribed;
+    // Le texte part sur le fil ici et nulle part ailleurs : c'est le dernier
+    // point du pipeline invité (doc 02 §1). L'audio, lui, est déjà mort avec
+    // le `SpeechSegment` (CLAUDE.md règle 2).
+    _publisher?.publish(transcribed);
     notifyListeners();
   }
 
@@ -134,6 +150,7 @@ class CaptureViewModel extends ChangeNotifier {
     }
     unawaited(_capture.dispose());
     unawaited(_transcribe.dispose());
+    unawaited(_publisher?.dispose());
     startCommand.dispose();
     stopCommand.dispose();
     toggleMuteCommand.dispose();

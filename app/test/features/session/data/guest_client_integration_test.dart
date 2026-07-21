@@ -12,6 +12,7 @@ import 'package:notalone/features/session/domain/protocol/session_message.dart';
 import 'package:notalone/features/session/domain/qr_session_payload.dart';
 import 'package:notalone/features/session/domain/session_config.dart';
 import 'package:notalone/features/session/domain/session_failure.dart';
+import 'package:notalone/features/transcript/domain/synced_clock.dart';
 
 const _timeout = Duration(seconds: 5);
 
@@ -291,6 +292,61 @@ void main() {
 
       final received = events.whereType<SessionMessageReceived>().single;
       expect(received.message, isA<MicStatus>());
+    });
+
+    test('le client répond seul aux clock_sync (MVP-11)', () async {
+      final (server, info, events) = await startHost();
+      // Horloge de l'invité avancée de 2 s sur celle de l'hôte : c'est
+      // exactement ce que la sonde doit mesurer.
+      const offsetMs = 2000;
+      final client = WebSocketGuestClient(
+        config: _fastGuest,
+        now: () => DateTime.now().millisecondsSinceEpoch + offsetMs,
+      );
+      addTearDown(() async {
+        await client.dispose();
+        await server.endSession();
+      });
+
+      final joined = await client.join(
+        session: payloadFor(info),
+        name: 'Camille',
+      );
+      final participantId = joined.valueOrNull!.participantId;
+
+      final hostSentMs = DateTime.now().millisecondsSinceEpoch;
+      server.sendTo(
+        participantId,
+        ClockSync(seq: 7, tHostSentMs: hostSentMs),
+      );
+      await pumpEventQueue();
+      final hostReceivedMs = DateTime.now().millisecondsSinceEpoch;
+
+      final replies = events
+          .whereType<SessionMessageReceived>()
+          .map((event) => event.message)
+          .whereType<ClockSync>()
+          .toList();
+      expect(replies, hasLength(1));
+      final reply = replies.single;
+      expect(reply.seq, 7, reason: 'la sonde est appariée par sa séquence');
+      expect(reply.tHostSentMs, hostSentMs);
+      expect(reply.isReply, isTrue);
+      expect(reply.tGuestSentMs, greaterThanOrEqualTo(reply.tGuestReceivedMs!));
+
+      // La sonde complète, remise à SyncedClock, retrouve bien l'écart.
+      final clock = SyncedClock();
+      final offset = clock
+          .registerProbe(
+            participantId: participantId,
+            hostSentMs: reply.tHostSentMs,
+            guestReceivedMs: reply.tGuestReceivedMs!,
+            guestSentMs: reply.tGuestSentMs!,
+            hostReceivedMs: hostReceivedMs,
+          )
+          .valueOrNull;
+      expect(offset, isNotNull);
+      expect(offset!.offsetMs, closeTo(offsetMs, 100));
     });
 
     test('fin de session côté hôte → l’invité en est informé', () async {

@@ -64,6 +64,7 @@
     "connecting": "Connexion…",
     "connected": "Tu es dans la conversation, {name}",
     "connectedHint": "Tu peux poser ton téléphone. Parle normalement.",
+    "openCapture": "Voir mon micro",
     "leave": "Quitter la conversation",
     "reconnecting": "Reconnexion… (essai {attempt})",
     "connectionLost": "Connexion perdue",
