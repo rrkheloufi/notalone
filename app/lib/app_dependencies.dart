@@ -30,8 +30,13 @@ import 'package:notalone/features/session/presentation/join_viewmodel.dart';
 import 'package:notalone/features/settings/presentation/settings_view.dart';
 import 'package:notalone/features/settings/presentation/settings_viewmodel.dart';
 import 'package:notalone/features/transcript/data/guest_segment_publisher.dart';
+import 'package:notalone/features/transcript/data/host_speaker_directory.dart';
 import 'package:notalone/features/transcript/data/host_transcript_binder.dart';
+import 'package:notalone/features/transcript/data/shared_preferences_transcript_preferences.dart';
+import 'package:notalone/features/transcript/data/wakelock_plus_screen_wake_lock.dart';
 import 'package:notalone/features/transcript/domain/merge_transcripts_use_case.dart';
+import 'package:notalone/features/transcript/domain/transcript_preferences_repository.dart';
+import 'package:notalone/features/transcript/presentation/transcript_viewmodel.dart';
 
 /// Racine de composition : toutes les dépendances (repositories, use cases,
 /// ViewModels) sont construites ici puis injectées par constructeur —
@@ -43,6 +48,9 @@ final class AppDependencies {
       SharedPreferencesUserProfileRepository();
 
   final PermissionService _permissions = PermissionHandlerService();
+
+  final TranscriptPreferencesRepository _transcriptPreferences =
+      SharedPreferencesTranscriptPreferences();
 
   late final PermissionGate microphoneGate = permissionGate(
     service: _permissions,
@@ -117,12 +125,22 @@ final class AppDependencies {
     required String sessionName,
   }) {
     final server = DartIoHostServer();
-    // Branché avant que la session démarre : le binder s'abonne au flux
-    // d'événements du serveur, il ne doit manquer aucune admission — ce sont
-    // elles qui déclenchent la synchronisation d'horloge.
-    final transcript = HostTranscriptBinder(
+    // Branchés avant que la session démarre : tous deux s'abonnent au flux
+    // d'événements du serveur, ils ne doivent manquer aucune admission — ce
+    // sont elles qui déclenchent la synchronisation d'horloge et qui donnent
+    // aux bulles leur prénom.
+    final binder = HostTranscriptBinder(
       server: server,
       merge: MergeTranscriptsUseCase(),
+    );
+    // Construit ici et non à l'ouverture de l'écran : `entries` est un flux
+    // diffusé sans rejeu, une phrase dite pendant que l'hôte montre encore le
+    // QR serait perdue.
+    final transcript = TranscriptViewModel(
+      binding: binder,
+      speakers: HostSpeakerDirectory(server: server),
+      preferences: _transcriptPreferences,
+      wakeLock: WakelockPlusScreenWakeLock(),
     );
     return HostLobbyViewModel(
       server: server,

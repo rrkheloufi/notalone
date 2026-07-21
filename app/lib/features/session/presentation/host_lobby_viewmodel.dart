@@ -7,7 +7,7 @@ import 'package:notalone/features/session/domain/host_server.dart';
 import 'package:notalone/features/session/domain/participant.dart';
 import 'package:notalone/features/session/domain/qr_session_payload.dart';
 import 'package:notalone/features/session/domain/session_discovery.dart';
-import 'package:notalone/features/transcript/domain/transcript_binding.dart';
+import 'package:notalone/features/transcript/presentation/transcript_viewmodel.dart';
 
 /// Salon de l'hôte : il démarre la session, montre le QR à scanner et voit
 /// les convives arriver (cf. cowork/01-cadrage-produit.md §3).
@@ -25,10 +25,13 @@ class HostLobbyViewModel extends ChangeNotifier {
   final String _hostName;
   final String _sessionName;
 
-  /// La fusion branchée sur cette session. Le salon la tient parce qu'il tient
-  /// la durée de vie de la session elle-même ; MVP-12 la lui reprendra en même
-  /// temps qu'il prendra l'écran du fil. Nulle en test, et hors session.
-  final TranscriptBinding? _transcript;
+  /// Le fil de cette session. Le salon le tient parce qu'il tient la durée de
+  /// vie de la session elle-même : le lecteur doit pouvoir revenir au QR puis
+  /// rouvrir le fil sans rien perdre, donc ce n'est pas l'écran du fil qui
+  /// décide de sa fin. Nul en test, et hors session.
+  final TranscriptViewModel? _transcript;
+
+  TranscriptViewModel? get transcript => _transcript;
 
   late final Command0<void> startCommand = Command0(_start);
   late final Command0<void> endSessionCommand = Command0(_endSession);
@@ -119,7 +122,7 @@ class HostLobbyViewModel extends ChangeNotifier {
     if (!_isRunning || _isEnded) return const Result.ok(null);
     await _advertiser.stop();
     await _server.endSession();
-    await _transcript?.dispose();
+    _transcript?.dispose();
     _isEnded = true;
     _isRunning = false;
     _isDiscoverable = false;
@@ -134,7 +137,7 @@ class HostLobbyViewModel extends ChangeNotifier {
     unawaited(_advertiser.stop());
     if (!_isEnded) {
       unawaited(_server.endSession());
-      unawaited(_transcript?.dispose());
+      _transcript?.dispose();
     }
     startCommand.dispose();
     endSessionCommand.dispose();

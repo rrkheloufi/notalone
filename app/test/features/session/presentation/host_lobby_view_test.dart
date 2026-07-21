@@ -10,8 +10,11 @@ import 'package:notalone/features/session/domain/session_discovery.dart';
 import 'package:notalone/features/session/domain/session_failure.dart';
 import 'package:notalone/features/session/presentation/host_lobby_view.dart';
 import 'package:notalone/features/session/presentation/host_lobby_viewmodel.dart';
+import 'package:notalone/features/transcript/presentation/transcript_view.dart';
+import 'package:notalone/features/transcript/presentation/transcript_viewmodel.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 
+import '../../../helpers/fake_transcript_sources.dart';
 import '../../../helpers/localized_app.dart';
 
 const host = Participant(
@@ -84,7 +87,7 @@ final class _FakeAdvertiser implements SessionAdvertiser {
   _FakeHostServer server,
   _FakeAdvertiser advertiser,
 })
-build() {
+build({TranscriptViewModel? transcript}) {
   final server = _FakeHostServer();
   final advertiser = _FakeAdvertiser();
   return (
@@ -93,9 +96,26 @@ build() {
       advertiser: advertiser,
       hostName: 'Rayan',
       sessionName: 'Conversation de Rayan',
+      transcript: transcript,
     ),
     server: server,
     advertiser: advertiser,
+  );
+}
+
+/// Fil branché sur des sources inertes : le salon n'a besoin que de pouvoir
+/// l'ouvrir et le fermer.
+({TranscriptViewModel viewModel, FakeTranscriptBinding binding})
+buildTranscript() {
+  final binding = FakeTranscriptBinding();
+  return (
+    viewModel: TranscriptViewModel(
+      binding: binding,
+      speakers: FakeSpeakerDirectory(),
+      preferences: FakeTranscriptPreferences(),
+      wakeLock: FakeScreenWakeLock(),
+    ),
+    binding: binding,
   );
 }
 
@@ -195,5 +215,62 @@ void main() {
     expect(find.textContaining('WiFi coupé'), findsOneWidget);
     expect(find.text('Réessayer'), findsOneWidget);
     expect(find.byType(PrettyQrView), findsNothing);
+  });
+
+  group('ouverture du fil (MVP-12)', () {
+    testWidgets('« Commencer » ouvre le fil de cette session', (tester) async {
+      final (viewModel: transcript, :binding) = buildTranscript();
+      final (:viewModel, server: _, advertiser: _) = build(
+        transcript: transcript,
+      );
+      await pumpLocalized(tester, HostLobbyView(viewModel: viewModel));
+
+      await tester.tap(find.text('Commencer la conversation'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TranscriptView), findsOneWidget);
+      await binding.emit(entry(participantId: 'g1', text: 'Passe le sel'));
+      await tester.pumpAndSettle();
+      expect(find.text('Passe le sel'), findsOneWidget);
+    });
+
+    testWidgets('le QR reste à un retour du fil', (tester) async {
+      final (viewModel: transcript, binding: _) = buildTranscript();
+      final (:viewModel, server: _, advertiser: _) = build(
+        transcript: transcript,
+      );
+      await pumpLocalized(tester, HostLobbyView(viewModel: viewModel));
+      await tester.tap(find.text('Commencer la conversation'));
+      await tester.pumpAndSettle();
+
+      // Le fil est empilé, pas substitué : un retardataire se fait scanner
+      // sans que la session soit à refaire.
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PrettyQrView), findsOneWidget);
+    });
+
+    testWidgets('sans fil branché, le bouton ne s’affiche pas', (tester) async {
+      final (:viewModel, server: _, advertiser: _) = build();
+
+      await pumpLocalized(tester, HostLobbyView(viewModel: viewModel));
+
+      expect(find.text('Commencer la conversation'), findsNothing);
+    });
+
+    testWidgets('terminer la session ferme le fil', (tester) async {
+      final (viewModel: transcript, :binding) = buildTranscript();
+      final (:viewModel, server: _, advertiser: _) = build(
+        transcript: transcript,
+      );
+      await pumpLocalized(tester, HostLobbyView(viewModel: viewModel));
+
+      await tester.tap(find.text('Terminer la conversation'));
+      await tester.pumpAndSettle();
+
+      // Rien du fil ne survit à la fin de session (CLAUDE.md règle 5).
+      expect(binding.isDisposed, isTrue);
+    });
   });
 }

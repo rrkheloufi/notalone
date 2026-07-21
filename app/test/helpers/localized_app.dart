@@ -5,6 +5,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:notalone/core/l10n/app_locales.dart';
+import 'package:notalone/core/theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Traductions FR lues une fois sur disque, servies ensuite sans I/O.
@@ -47,7 +48,15 @@ AssetLoader get frenchLoader => _loader;
 const Size phoneSize = Size(400, 900);
 
 /// Monte [child] dans une app localisée en français, sur un gabarit mobile.
-Future<void> pumpLocalized(WidgetTester tester, Widget child) async {
+///
+/// [brightness] nul laisse le thème par défaut de `MaterialApp` : c'est ce que
+/// veulent les tests de comportement. Les goldens, eux, le fixent pour capturer
+/// le vrai thème de l'app dans les deux modes.
+Future<void> pumpLocalized(
+  WidgetTester tester,
+  Widget child, {
+  Brightness? brightness,
+}) async {
   tester.view
     ..physicalSize = phoneSize
     ..devicePixelRatio = 1.0;
@@ -63,6 +72,11 @@ Future<void> pumpLocalized(WidgetTester tester, Widget child) async {
           localizationsDelegates: context.localizationDelegates,
           supportedLocales: context.supportedLocales,
           locale: context.locale,
+          theme: brightness == null
+              ? null
+              : (brightness == Brightness.dark
+                    ? AppTheme.dark
+                    : AppTheme.light),
           home: child,
         ),
       ),

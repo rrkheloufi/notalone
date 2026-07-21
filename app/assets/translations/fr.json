@@ -50,7 +50,26 @@
     "connected": "connecté",
     "disconnected": "déconnecté",
     "endSession": "Terminer la conversation",
-    "sessionName": "Conversation de {name}"
+    "sessionName": "Conversation de {name}",
+    "start": "Commencer la conversation"
+  },
+  "transcript": {
+    "title": "Conversation",
+    "empty": "Personne n'a encore parlé",
+    "emptyHint": "Ce que disent les convives s'écrira ici, au fur et à mesure.",
+    "showQr": "Montrer le QR code",
+    "qrTitle": "Faire rejoindre quelqu'un",
+    "textLarger": "Agrandir le texte",
+    "textSmaller": "Réduire le texte",
+    "newMessages": {
+      "one": "1 nouveau message",
+      "other": "{} nouveaux messages"
+    },
+    "unknownSpeaker": "Quelqu'un",
+    "late": "arrivé en retard",
+    "filterActive": "On ne voit que {name}",
+    "filterClear": "Revoir tout le monde",
+    "filterEmpty": "{name} n'a encore rien dit"
   },
   "join": {
     "title": "Rejoindre",

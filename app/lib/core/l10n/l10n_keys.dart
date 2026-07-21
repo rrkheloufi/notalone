@@ -73,6 +73,34 @@ abstract final class L10nKeys {
 
   static const String hostLobbySessionName = 'hostLobby.sessionName';
 
+  static const String hostLobbyStart = 'hostLobby.start';
+
+  static const String transcriptTitle = 'transcript.title';
+
+  static const String transcriptEmpty = 'transcript.empty';
+
+  static const String transcriptEmptyHint = 'transcript.emptyHint';
+
+  static const String transcriptShowQr = 'transcript.showQr';
+
+  static const String transcriptQrTitle = 'transcript.qrTitle';
+
+  static const String transcriptTextLarger = 'transcript.textLarger';
+
+  static const String transcriptTextSmaller = 'transcript.textSmaller';
+
+  static const String transcriptNewMessages = 'transcript.newMessages';
+
+  static const String transcriptUnknownSpeaker = 'transcript.unknownSpeaker';
+
+  static const String transcriptLate = 'transcript.late';
+
+  static const String transcriptFilterActive = 'transcript.filterActive';
+
+  static const String transcriptFilterClear = 'transcript.filterClear';
+
+  static const String transcriptFilterEmpty = 'transcript.filterEmpty';
+
   static const String joinTitle = 'join.title';
 
   static const String joinScanHint = 'join.scanHint';

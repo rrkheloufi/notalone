@@ -6,6 +6,7 @@ import 'package:notalone/core/l10n/l10n_keys.dart';
 import 'package:notalone/core/theme/speaker_colors.dart';
 import 'package:notalone/features/session/domain/participant.dart';
 import 'package:notalone/features/session/presentation/host_lobby_viewmodel.dart';
+import 'package:notalone/features/transcript/presentation/transcript_view.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 
 /// Salon de l'hôte : « Nouvelle conversation » → un QR s'affiche → les autres
@@ -37,6 +38,25 @@ class _HostLobbyViewState extends State<HostLobbyView> {
     if (mounted) Navigator.of(context).pop();
   }
 
+  /// Le fil est **empilé** sur le salon, pas substitué : le QR reste à un
+  /// retour d'ici, et le ViewModel du fil survit à la fermeture de l'écran —
+  /// c'est le salon qui le possède.
+  void _openTranscript() {
+    final transcript = widget.viewModel.transcript;
+    if (transcript == null) return;
+    unawaited(
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) => TranscriptView(
+            viewModel: transcript,
+            sessionName: widget.viewModel.sessionName,
+            qrData: widget.viewModel.qrData,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final viewModel = widget.viewModel;
@@ -59,7 +79,11 @@ class _HostLobbyViewState extends State<HostLobbyView> {
           if (!viewModel.isRunning) {
             return const Center(child: CircularProgressIndicator());
           }
-          return _Lobby(viewModel: viewModel, onEndSession: _endSession);
+          return _Lobby(
+            viewModel: viewModel,
+            onEndSession: _endSession,
+            onOpenTranscript: _openTranscript,
+          );
         },
       ),
     );
@@ -67,10 +91,15 @@ class _HostLobbyViewState extends State<HostLobbyView> {
 }
 
 class _Lobby extends StatelessWidget {
-  const _Lobby({required this.viewModel, required this.onEndSession});
+  const _Lobby({
+    required this.viewModel,
+    required this.onEndSession,
+    required this.onOpenTranscript,
+  });
 
   final HostLobbyViewModel viewModel;
   final Future<void> Function() onEndSession;
+  final VoidCallback onOpenTranscript;
 
   @override
   Widget build(BuildContext context) {
@@ -128,6 +157,15 @@ class _Lobby extends StatelessWidget {
                 ),
               ),
             ),
+            // Le fil est l'écran où l'hôte passe le repas : il est l'action
+            // principale, la fin de session reste discrète juste dessous.
+            if (viewModel.transcript != null)
+              FilledButton.icon(
+                onPressed: onOpenTranscript,
+                icon: const Icon(Icons.forum),
+                label: Text(L10nKeys.hostLobbyStart.tr()),
+              ),
+            const SizedBox(height: 8),
             FilledButton.tonalIcon(
               onPressed: viewModel.endSessionCommand.running
                   ? null
